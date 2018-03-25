@@ -1,0 +1,78 @@
+\subsection{word2vec revisited}
+Recall that the skip-gram (word2vec) model is typically trained using stochastic gradient descent. Because the parametrization of the model is very large ($2Vd$ terms, where $V$ is the vocabulary size and $d$ is the dimensionality of the vector representations of the words) and the calculated gradient at each iteration is comparatively sparse, we should avoid computing and passing around complete gradient vectors when performing SGD.
+
+Previously, we used the following probability in the skip-gram model:
+$$p(o|c) = \frac{\exp\left(u_o^T v_c\right)}{\sum_{w\in V}\exp\left(u_w^T v_c\right)}.$$
+The numerator of this is easy to compute, but the denominator is pretty expensive, as the sum has to be taken across the entire vocabulary. Instead of computing the full sum, the actual word2vec model uses a slightly different objective function that allows it to randomly sample from the vocabulary instead of iterating over the whole vocabulary:
+$$J(\theta) = \sum_{t=1}^T J_t(\theta) = \sum_{t=1}^T \left[\log \sigma\left(u_o^T v_c\right) + \sum_{\substack{j\sim P(V)\\ k~\text{samples}}} \log \sigma\left(-u_j^T v_c\right)\right],$$
+where $T$ represents our corpus, $\sigma$ is the sigmoid function, $\sigma(z) = (1 + e^{-z})^{-1}$, $P(V)$ is a probability distribution over the vocabulary $V$, $\sim$ indicates random sampling, and $k$ is a constant, usually around 10. Furthermore, instead of minimizing this objective function, the model actually seeks to maximize it. Intuitively, this means that the model attempts to maximize $u_o^T v_c$ when $o$ occurs in the context of $c$ and minimize $u_w^T v_c$ for $w$ that do not appear in the context of $c$, which is pretty similar to what we were doing with the previous objective function.
+
+One detail on the objective function: the probability distribution $P(V)$ that is usually used is $P(w) = U(w)^{3/4}/Z$, where $U(w)$ is the unigram frequency of $w \in V$ and $Z$ is a normalizing factor to make $\sum_{w \in V} P(w) = 1$. The exponent of 3/4 ``smoothes out" the distribution a bit, so that more frequent items are less likely to be selected than less frequent items in proportion to their frequencies.
+
+An alternative to the skip-gram model is the similar Continuous Bag-Of-Words (CBOW) model. While the skip-gram model attempts to predict the probability of an outside word appearing given a center word, the CBOW model attempts to predict the probability of the center word occuring given the sum of the (vector representation of the) outside words.
+
+\subsection{Co-occurrence matrices}
+Co-occurrence matrices are another way to construct vector representations of words. To start, we can create a $|V| \times |V|$ matrix $X$ and iterate through our corpus, incrementing $X_ij$ every time we see $i, j \in V$ occurring together. We can define ``occurring together", or co-occurrence, in various ways. Some common ones are:
+\begin{itemize}
+\item Window-based co-occurrence. This is similar to what the skip-gram model does: we say that two words co-occur if one appears in a window around the other (e.g. the window from 8 words before to 8 words after).
+\item {[[Full-document co-occurrence. Here we say that two words co-occur if they both appear in some document in our corpus.]]}
+\item {[[Word-document co-occurrence. In this definition, we need to change our matrix $X$. We will still have a row for each word, but instead of having a column for each word as well, we have a column for each document in our corpus, and we say that a word and a document co-occur if the word appears in that document.]]}
+\end{itemize}
+
+It turns out that window-based co-occurrence allows us to represent both syntactic and semantic information in the vector representations, while [[full-document co-occurrence and word-document co-occurrence allow us to capture topics and perform Latent Semantic Analysis.]] Unless otherwise specified, further discussion in this section will be about window-based co-occurrence matrices.
+
+These ``raw" co-occurrence matrices, however, are extremely storage intensive; a 100,000 word vocabulary would yield a matrix with 10 billion entries when using window-based co-occurrence. These matrices are also rather sparse, which negatively impacts the robustness of models trained on them. We can solve both of these problems by reducing the column space using singular value decomposition (SVD). Other improvements that we can make to this model include:
+\begin{itemize}
+\item To prevent stopwords from creating very spiky counts, we can cap frequency counts when assembling the pre-SVD matrix or ignore stopwords altogether.
+\item We can weight co-occurrences; e.g. maybe we should weight the co-occurrence of two words more if they are adjacent rather than 5 words apart (e.g. by adding a larger or smaller increment to the corresponding entry in the pre-SVD co-occurrence matrix).
+\end{itemize}
+However, co-occurrence matries still have some issues:
+\begin{itemize}
+\item Adding words to the vocabulary is difficult - we have to grow both the row space and the column space.
+\item SVD is an expensive operation; on an $m\times n$ matrix with $n < m$, it has runtime $O(mn^2)$.
+\item The model only captures word similarity and doesn't really capture any additional patterns.
+\item It's hard to make the model not give excessive significance to large counts.
+\end{itemize}
+On the other hand, co-occurrence matrices have some advantages as well:
+\begin{itemize}
+\item It's relatively fast to train.
+\item It uses the statistics of the corpus efficiently - after a single training pass, we can perform whatever further transformation/analysis we want on the co-occurrence counts.
+\end{itemize}
+
+As for the skip-gram model:
+\begin{itemize}
+\item The representations it produces are often better suited for downstream tasks.
+\item It captures patterns beyond just word similarity - it also gets things like syntactical relationships.
+\item The training time scales with the corpus size. It can take a very long time to train on a large corpus.
+\item It doesn't really let us use corpus statistics well, as there isn't really any intermediate representation of the data besides the trained model itself.
+\end{itemize}
+
+\subsection{GloVe}
+Global Vectors, or GloVe, is another method for training vector representations of words. It compiles a co-occurrence matrix $P$, and then seeks to minimize the objective function
+$$J(\theta) = \frac{1}{2} \sum_{i, j \in V}f(P_{ij})\left(u_i^T v_j - \log P_{ij}\right)^2.$$
+$f$ here is a function that is increasing until a cutoff point, after which it becomes constant. The parameters of the model here are the word vectors $u_i$ and $v_j$, similar to the skip-gram model.
+
+Intuitively, we weight common co-occurrences more heavily in this objective function, but we have a cap on how heavily any one can be weighted. We also want $u_i^T v_j$ to be larger, i.e. $u_i$ and $v_j$ to be more similar, when $P_{ij}$ is larger (i.e. when $i$ and $j$ co-occur more frequently). At the end when we've trained our $u_i$ and $v_j$, the final representation $x_w$ that we choose for each word $w \in V$ is simply $x_w = u_w + v_w$.
+
+This method scales to large corpora but has been shown to also work well for small corpora. It's like a best-of-both-worlds between word2vec and co-occurrence matrices: it's fast to train and uses statistics efficiently, but also captures information beyond word similarity and caps the influence of large co-occurrence counts. Furthermore, it avoids the computational cost of performing SVD on a large matrix.
+
+\subsection{Evaluation of vector representations of words}
+Once we have a model, we'd like to evaluate how well it performs. In general, there are two categories of evaluation metrics for any model: intrinsic and extrinsic.
+\begin{itemize}
+\item Intrinsic metrics measure how well the model performs some specific or intermediate subtask, such as how well vector similarities of words map to human judgments of similarities of words. They:
+\begin{itemize}
+\item are typically easy to compute and measure and
+\item often can give you more insight into your own system by showing you which hyperparameters affect your system, but
+\item oftentimes don't clearly show whether the model is actually good at some more externally useful task.
+\end{itemize}
+\item Extrinsic metrics measure how well the model performs some more useful downstream task, such as machine translation. Extrinsic metrics:
+\begin{itemize}
+\item are often slow to compute (e.g. it might take a while to train the machine translation model from your word representations) and
+\item can be unclear on whether your component (e.g. word representations) of the larger system (e.g. machine translation system) specifically improved performance on its own if other parts of the system have also changed.
+\end{itemize}
+\end{itemize}
+One intrinsic metric is word vector analogy accuracy. For example, if we give the analogy task\\
+\centerline{\texttt{Paris:France::Rome:??}}
+to the model, the model should be able to determine that the correct answer is Italy..Typically word representation models do this by finding the word $w$ that maximizes
+$$\frac{(x_b - x_a + x_c)^T x_w}{||x_b - x_a + x_c||||x_w||},$$
+where the analogy is given as \texttt{a:b:::c:???}. We can then measure how well the model works by feeding it many such analogies and examining how many it gets correct.
