@@ -1,0 +1,35 @@
+Let's now imagine a neural network with two hidden layers, still using the same output layer and cost function as before. We now have:
+$$s = U^Ta^{(3)}$$ 
+\begin{align*}
+&a^{(3)} = f(z^{(3)}) &z^{(3)} = W{(2)}a^{(2)} + b^{(2)}\\
+&a^{(2)} = f(z^{(2)}) &z^{(2)} = W^{(1)}x + b^{(1)}\\
+\end{align*}
+We can easily derive $s$ with respect to $U$ and $W^{(2)}$ just as we did before to get
+\begin{align*}
+\frac{\partial s}{\partial U} &= a^{(3)} \\
+\frac{\partial s}{\partial W^{(2)}} &= \delta^{(3)}a^{(3)T},
+\end{align*}
+where $\delta^{(3)} = U \circ f'(z^{(3)})$, with $\circ$ denoting the element-wise product of two vectors. We can calculate $\partial s/\partial b^{(2)} = \delta^{(3)}$ similarly as well.
+
+It now remains to calculate the partials of $s$ with respect to $W^{(1)}$, $b^{(1)}$, and $x$. We will demonstrate the computation for $W^{(1)}$:
+\begin{align*}
+\frac{\partial s}{\partial W_{ij}^{(1)}} &= \frac{\partial}{\partial W_{ij}^{(1)}}U^Tf(W^{(2)}a^{(2)} + b^{(2)})\\
+&= \sum_k\frac{\partial}{\partial W_{ij}^{(1)}} \left[U_k f(W_k^{(2)}a^{(2)} + b_k^{(2)}) \right]\\
+&= \sum_k  U_kf'(W_k^{(2)}a^{(2)} + b_k^{(2)}) \frac{\partial}{\partial W_{ij}^{(1)}} W_k^{(2)}a^{(2)}\\
+&= \sum_k \delta^{(3)}_k \frac{\partial}{\partial W_{ij}^{(1)}}W_k^{(2)}f(W^{(1)}x + b^{(1)})\\
+&= \sum_k \delta^{(3)}_k \frac{\partial}{\partial W_{ij}^{(1)}}W_{ki}^{(2)}f(W_i^{(1)}x + b_i^{(1)})\\
+&= \sum_k \delta^{(3)}_k W_{ki}^{(2)} f'(W_i^{(1)}x + b_i^{(1)})\frac{\partial}{\partial W_{ij}^{(1)}} \left(W_i^{(1)}x + b_i^{(1)}\right)\\
+&= \sum_k \delta_k^{(3)} W_{ki}^{(2)} f'(z^{(2)}_i)x_j\\
+&= x_jf'(z_i^{(2)})\left(W_{.i}^{(2)T}\delta^{(3)}\right)\\
+\Rightarrow \frac{\partial s}{\partial W^{(1)}} &= \left(f'(z^{(2)}) \left(\circ W^{(2)T} \delta^{(3)}\right)\right) x^T = \delta^{(2)} x^T,
+\end{align*}
+where
+$$\delta^{(2)} = \left(W^{(2)T} \delta^{(3)}\right) \circ f'(z^{(2)}).$$
+It's easy to see from the previous derivation that $\partial s/\partial b^{(1)} = \delta^{(2)}$, and the partial with respect to $x$ can be found in a similar way.
+
+In general, we have
+\begin{align*}
+\delta^{(\ell)} &= \left(W^{(\ell)T}\delta^{(\ell + 1)}\right) \circ f'(z^{(\ell)})\\
+\frac{\partial E_R}{\partial W^{(\ell)}} &= \delta^{(\ell + 1)}a^{(\ell)T} + \lambda W^{(\ell)},
+\end{align*}
+for any intermediate layer $\ell$, any activation function $f$, and regularization with constant $\lambda$.
