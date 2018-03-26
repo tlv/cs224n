@@ -1,0 +1,62 @@
+Previously we have discussed unsupervised models for learning word representations, but eventually we want to use these representations to train supervised predictive models.
+
+In a typical classification problem, we'll have a training dataset $(x_i, y_i), 1 \le i \le N$, where the $x_i$ are our inputs and the $y_i$ are labels that we want to train our model to predict. A legacy technique for training these models is logistic regression, a.k.a. softmax. In this method, we train a weight matrix $W$ with one row per class, and then attempt to adjust it so that our predictions
+$$p(y|x) = \frac{\exp\left(W_y x\right)}{\sum_c \exp \left(W_c x\right)}$$
+match the training examples as closely as possible. Here $W_c$ represents the row of weights in $W$ corresponding to the specific class $c$. A common loss function for softmax is the cross-entropy loss:
+$$J(\theta) = \frac{1}{N} \sum_{i=1}^N -\log\frac{\exp \left( W_{y_i} x_i \right)}{\sum_c \exp\left(W_c x_i\right)},$$
+where $\theta$ represents all the parameters of the model (in this case $W$). Oftentimes in practice we also add a regularization term $\lambda \theta^T \theta$, which helps prevent overfitting. Note that this method treats the inputs $X = [x_1^T, x_2^T, ..., X_N^T]^T$ as constant. In constrast, when we use deep learning models, we usually update our word vectors (i.e. $X$) as well. However, because this vastly increases our parameter space, we need to be careful not to overfit. Often if we have a small training set, we shouldn't update word vectors, as overfitting would be a big problem.
+
+\subsection{Tips for vector calculus}
+There will be a lot of vector calculus involved in calculating gradients for neural network (NN) models. Some tips for when it gets tricky:
+\begin{itemize}
+\item Carefully define all variables and keep track of their dimensionality. Checking dimensionality is a great sanity check for whether you've made any obvious mistakes.
+\item When using the chain rule, keep track of variable dependencies to make sure you haven't forgotten a necessary step of differentiation.
+\item Casework can sometimes make a calculation more intuitive (e.g. gradients for the correct class vs. the incorrect classes).
+\item It can sometimes also be easier to calculate derivatives element-by-element instead of trying to differentiate the whole vector function at once.
+\item After doing casework and elementwise differentiation, try to vectorize your notation again. It's important to vectorize your implementations in code, so you'll need to vectorize the notation at some point.
+\end{itemize}
+
+\subsection{Window classification}
+A common prediction task is to predict whether a center word in a window of words is a named person/place/organization or not a named entity. Typically the input to the model is the concatenation of the word vectors in the window (so if we had $d$-dimensional word vectors and used a window with $m$ words before and after the center word, our input would be a vector of dimensionality $(2m + 1)d$). 
+
+We could approach this problem with the softmax technique, but softmax is only capable of learning linear decision boundaries. NNs, on the other hand, can learn more complex nonlinear boundaries.
+
+\subsection{Neural networks}
+A neural network is made up of many neurons, arranged in sequential layers. We call the first layer the input layer, since it just contains the input values, and the final layer the output layer. The intermediate layers between them are commonly referred to as hidden layers. Each neuron has a weight vector $w$, an input vector $x$, a bias unit $b$, and an activation function $f$, and produces output $f(wx + b)$. A common activation function is the sigmoid function $f(z) = (1 + e^{-z})^{-1}$.
+
+The reason that a neural network can learn more complex decision boundaries is that it can feed the outputs of neurons into another layer of neurons: instead of being constrained to immediately predict the output, it can learn an intermediate representation that might be more helpful for predicting the output. Note however that this requires a nonlinear activation function like the sigmoid; if we had a linear activation function, like the identity function, our neural network would still just be a linear classifier at the end of the day.
+
+Back to our example problem - imagine that we're using a simple one-hidden-layer NN to predict whether the center word in a window is a named entity location or not. We have an input layer $x_j$ which together with a weight matrix $W$ produces a hidden layer $a_i$, which finally produces a score $s$. For simplicity, we will use a simple model where $s$ is a linear score: $s = U^Ta$ for some weight vector $U$. We will use the max-margin loss function:
+$$J = \max\left(0, 1 - s + s_c\right),$$
+where $s$ is predicted score of a positive example (where the center word is a named location) and $s_c$ is the predicted score of a negative example (where the center word is not a named location). In practice, for a single positive example, we usually randomly sample some $s_c$ rather than computing the max over the whole training corpus. Intuitively, this loss function tries to find a decision boundary that separates positive and negative samples by a ``sufficiently large" margin (``sufficiently large" is defined here as 1, but it can be tuned as a hyperparameter).
+
+Note that it is very common to write $a = f(z)$, so that $a = f(Wx + b)$ and $z = Wx + b$. (Here $f$ is evaluated element-wise.)
+
+We now compute the gradient of $J$ in parts. When $J = 0$ we have $\vec{\nabla} J = 0$, so assume $J > 0$. Then $\vec{\nabla} J = -\vec{\nabla}s + \vec{\nabla}s_c$. We will just compute $\vec{\nabla}s$ for illustration. For the partial derivatives with respect to $U$, we have:
+$$\frac{\partial s}{\partial U} = \frac{\partial}{\partial U} U^Ta = a.$$
+For the partial derivatives with respect to $W$, we have:
+$$\frac{\partial s}{\partial W_{ij}} = \frac{\partial}{\partial W_{ij}} U^Ta = \frac{\partial}{\partial W_{ij}}U^Tf(z) = \frac{\partial}{\partial W_{ij}} U^Tf(Wx + b).$$
+Note that only the $i$-th entry of $f(Wx + b)$ is nonconstant with respect to $W_{ij}$, so we have
+\begin{align*}
+\frac{\partial}{\partial W_{ij}} U^Tf(Wx + b) &= \frac{\partial}{\partial W_{ij}} U_if(W_ix + b_i)\\
+&= U_if'(z_i)x_j\\
+&= \delta_ix_j,
+\end{align*}
+where we have written $\delta_i = U_if'(z_i)$. Now note that by combining all of these entries, we can write:
+$$\frac{\partial s}{\partial W} = \delta x^T.$$
+To calculate the partials with respect to $b$, we have:
+\begin{align*}
+\frac{\partial s}{\partial b_i} &= \frac{\partial}{\partial b_i}U^Tf(Wx + b) = \frac{\partial}{\partial b_i} U_if(W_ix + b_i)\\
+&= U_if'(W_ix + b_i)\\
+&= \delta_i\\
+\Rightarrow \frac{\partial s}{\partial b} &= \delta.
+\end{align*}
+Finally it remains to find the partials with respect to $x$. We have:
+\begin{align*}
+\frac{\partial s}{\partial x_j} &= \frac{\partial}{\partial x_j} U^Ta \\
+&= \sum_i \frac{\partial}{\partial x_j} U_ia_i\\
+&= \sum_i U_i\frac{\partial}{\partial x_j} f(W_ix + b_i)\\
+&= \sum_i U_i f'(W_ix + b_i) \frac{\partial}{\partial x_j} W_ix\\
+&= \sum_i \delta_iW_{ij}\\
+\Rightarrow \frac{\partial s}{\partial x} &= W^T\delta.
+\end{align*}
