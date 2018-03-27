@@ -1,0 +1,23 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{fullpage}
+\usepackage[parfill]{parskip}
+\title{Assignment 1 writeup}
+\author{Thomas Lu}
+\date{}
+\begin{document}
+\maketitle
+\section{Problem 1}
+(a)
+
+We have
+\begin{align*}
+\text{softmax}(\mathbf{x} + c)_i &= \frac{e^{x_i + c}}{\sum_j e^{x_j + c}}\\
+&= \frac{e^c(e^{x_i})}{e^c\sum_j e^{x_j}}\\
+&= \frac{e^c}{e^c} \frac{e^{x_i}}{\sum_j e^{x_j}}\\
+&= \frac{e^{x_i}}{\sum_je^{x_j}}\\
+&= \text{softmax}(\mathbf{x})_i,
+\end{align*}
+so $\text{softmax}(\mathbf{x} + c) = \text{softmax}(\mathbf{x}),$ as desired.
+\end{document}
