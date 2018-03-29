@@ -48,10 +48,12 @@ def forward_backward_prop(X, labels, params, dimensions):
     ### END YOUR CODE
 
     ### YOUR CODE HERE: backward propagation
-    gradb2 = np.sum(pred - labels, axis=0)
-    gradW2 = np.array([np.sum(H, axis=0)]).T.dot(np.array([gradb2]))
-    gradb1 = gradb2.dot(W2.T) * np.sum(sigmoid_grad(sigmoid(Z1)), axis=0)
-    gradW1 = np.array([np.sum(X, axis=0)]).T.dot(np.array([gradb1]))
+    gradb2_split = pred - labels
+    gradb2 = np.sum(gradb2_split, axis=0)
+    gradW2 = H.T.dot(gradb2_split)
+    gradb1_split = gradb2_split.dot(W2.T) * sigmoid_grad(sigmoid(Z1))
+    gradb1 = np.sum(gradb1_split, axis=0)
+    gradW1 = X.T.dot(gradb1_split)
     ### END YOUR CODE
 
     ### Stack gradients (do not modify)
@@ -67,7 +69,7 @@ def sanity_check():
     """
     print "Running sanity check..."
 
-    N = 1
+    N = 20
     dimensions = [10, 5, 10]
     data = np.random.randn(N, dimensions[0])   # each row will be a datum
     labels = np.zeros((N, dimensions[2]))
@@ -90,13 +92,16 @@ def your_sanity_checks():
     """
     print "Running your sanity checks..."
     ### YOUR CODE HERE
-    N = 1
     dimensions = [1, 1, 2]
-    labels = np.array([[0., 1.]])
     params = np.array([1.,-1.,1.,2.,1.,2.])
-    X = np.array([[1.]])
+    labels_1 = np.array([[0., 1.]])
+    X_1 = np.array([[1.]])
+    labels_2 = np.array([[0., 1.], [0., 1.]])
+    X_2 = np.array([[1.], [1.]])
     gradcheck_naive(lambda params:
-        forward_backward_prop(X, labels, params, dimensions), params)
+        forward_backward_prop(X_1, labels_1, params, dimensions), params)
+    gradcheck_naive(lambda params:
+        forward_backward_prop(X_2, labels_2, params, dimensions), params)
     ### END YOUR CODE
 
 
