@@ -15,7 +15,7 @@ def sigmoid(x):
     """
 
     ### YOUR CODE HERE
-    raise NotImplementedError
+    return 1.0 / (1 + np.exp(-x))
     ### END YOUR CODE
 
     return s
@@ -35,7 +35,7 @@ def sigmoid_grad(s):
     """
 
     ### YOUR CODE HERE
-    raise NotImplementedError
+    ds = s * (1.0 - s)
     ### END YOUR CODE
 
     return ds
@@ -72,7 +72,16 @@ def test_sigmoid():
     """
     print "Running your tests..."
     ### YOUR CODE HERE
-    raise NotImplementedError
+    x = np.zeros((2, 3))
+    f = sigmoid(x)
+    g = sigmoid_grad(f)
+    assert np.allclose(f, 0.5 * np.ones((2, 3)), rtol=1e-05, atol=1e-06)
+    assert np.allclose(g, 0.25 * np.ones((2, 3)), rtol=1e-05, atol=1e-06)
+
+    f = sigmoid(0)
+    g = sigmoid_grad(f)
+    assert np.allclose(f, 0.5, rtol=1e-05, atol=1e-06)
+    assert np.allclose(g, 0.25, rtol=1e-05, atol=1e-06)
     ### END YOUR CODE
 
 
