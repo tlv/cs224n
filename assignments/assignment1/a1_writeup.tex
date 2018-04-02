@@ -3,6 +3,9 @@
 \usepackage{amssymb}
 \usepackage{fullpage}
 \usepackage[parfill]{parskip}
+\usepackage{graphicx}
+\newcommand*{\horzbar}{\rule[.5ex]{2.5ex}{0.5pt}}
+\newcommand{\pd}[2]{\frac{\partial #1}{\partial #2}}
 \title{Assignment 1 writeup}
 \author{Thomas Lu}
 \date{}
@@ -85,4 +88,68 @@ where $\text{diag}(v)$ denotes the diagonal matrix $D$ with $D_ii = v_i$ and 1 d
 \end{itemize}
 Thus the total number of parameters is
 $$H + D_y + HD_x + HD_y = D_y(H + 1) + H(D_x + 1).$$
+
+\section{Problem 3}
+(a) Let $V$ be our vocabulary, and for $o, c \in V$, let $v_c$ denote the center word (column) vector for $c$ and $u_o$ denote the outer word (column) vector for $o$. Let $U$ denote the matrix
+$$
+\left[
+\begin{array}{ccc}
+\horzbar & u_{w_1}^T \horzbar \\
+\horzbar & u_{w_2}^T \horzbar \\
+& \vdots & \\
+\horzbar & u_{w_N}^T \horzbar \\
+\end{array}
+\right],
+$$
+where $V = \{w_1, w_2, \dots, w_N\}$. Let 
+$$\hat{y}_i = p(w_i | c) = \frac{\exp(u_{w_i}^Tv_c)}{\sum_{w \in V}\exp(u_w^Tv_c)}$$
+and $\hat{y} = [\hat{y}_1, \hat{y}_2, \dots, \hat{y}_N].$ Supposing that $y$ is one-hot with the one at $o$, we have
+\begin{align*}
+\pd{J}{v_c} &= \pd{}{v_c} CE(y, \hat{y})\\
+&= -\pd{}{v_c} \sum_{i=1}^N y_i \log \hat{y}_i \\
+&= -\pd{}{v_c} \log \frac{\exp(u_o^Tv_c)}{\sum_{w\in V} \exp\left(u_w^Tv_c\right)}\\
+&= -\pd{}{v_c} \left( \log\left(\exp(u_o^Tv_c)\right) - \log\left(\sum_{w\in V} \exp\left(u_w^Tv_c\right)\right)\right)\\
+&= -u_o + \frac{1}{\sum_{w\in V}\exp( u_w^Tv_c)} \sum_{w\in V}\pd{}{v_c}\exp\left(u_w^Tv_c\right)\\
+&= -u_o + \frac{1}{\sum_{w\in V}\exp( u_w^Tv_c)} \sum_{w\in V}u_w\exp\left(u_w^Tv_c\right)\\
+&= -u_o + \sum_{i=1}^N u_{w_i}\hat{y}_i\\
+&= U^T\left(\hat{y} - y\right).
+\end{align*}
+
+(b) We have, using the same variable conventions as in (a),
+\begin{align*}
+\pd{J}{u_{w_i}} &= -\pd{}{u_{w_i}} \log \frac{\exp(u_o^Tv_c)}{\sum_{w\in V} \exp\left(u_w^Tv_c\right)}\\
+&= -\pd{}{u_{w_i}} \left( \log\left(\exp(u_o^Tv_c)\right) - \log\left(\sum_{w\in V} \exp\left(u_w^Tv_c\right)\right)\right)\\
+&= -v_c(1_{w_i = o}) + \frac{1}{\sum_{w\in V}\exp( u_w^Tv_c)} \pd{}{u_{w_i}} \left(\sum_{w \in V}\exp\left(u_w^Tv_c\right) \right)\\
+&= -v_c(1_{w_i = o}) + \left(\frac{\exp\left(u_{w_i}^Tv_c\right)}{\sum_{w\in V}\exp( u_w^Tv_c)} \right)v_c\\
+&= -v_cy_i + \hat{y}_i v_c\\
+\Rightarrow \pd{J}{U} &= (\hat{y} - y)v_c^T.
+\end{align*}
+
+(c) Note first that
+$$\frac{d}{dx} \log(\sigma(x)) = \frac{1}{\sigma(x)}\sigma'(x) = \frac{1}{\sigma(x)}\left(\sigma(x)(1 - \sigma(x))\right) = 1 - \sigma(x).$$
+For $w \notin \{o, 1, 2, \dots, K\},$ it is clear that $\partial J/\partial u_w = 0$. Now
+$$\pd{J}{u_o} = -(1 - \sigma(u_o^Tv_c))\pd{}{u_o}\left(u_o^Tv_c\right) = v_c(\sigma(u_o^Tv_c) - 1)$$
+$$\pd{J}{u_i} = -\pd{}{u_i} \log\sigma(-u_i^Tv_c) = v_c(1 - \sigma(-u_i^Tv_c)),$$
+where $i \in \{1, 2, \dots, K\}.$ Similarly, we can compute
+$$\pd{J}{v_c} = u_o(\sigma(u_o^Tv_c) - 1) + \sum_{k=1}^K u_k(1 - \sigma(-u_k^Tv_c)).$$
+This is much faster to compute because we only need to perform $K/V$ (proportionally) as many dot products.
+
+(d) For the skip-gram model, we have
+\begin{align*}
+\pd{J_{\text{skipgram}}(w_{t-m \dots t+m})}{v_c} &= \sum_{\substack{t-m \le j \le t+m\\j \ne 0}} \pd{F(w_j, v_c)}{v_c}\\
+\pd{J_{\text{skipgram}}(w_{t-m \dots t+m})}{v_j} &= 0, ~ j\ne c\\
+\pd{J_{\text{skipgram}}(w_{t-m \dots t+m})}{U} &= \sum_{\substack{t-m \le j \le t+m\\j \ne 0}} \pd{F(w_j, v_c)}{U}\\
+\end{align*}
+For CBOW, we have
+\begin{align*}
+\pd{J_{\text{CBOW}}(w_{t-m \dots t+m})}{v_c} &= \pd{F(w_t, \hat{v})}{\hat{v}} \pd{\hat{v}}{v_c} = \pd{F(w_t, \hat{v})}{\hat{v}}\\
+\pd{J_{\text{CBOW}}(w_{t-m \dots t+m})}{U} &= \pd{F(w_t, \hat{v})}{U}\\
+\pd{J_{\text{CBOW}}(w_{t-m \dots t+m})}{v_j} &= 0, ~ j \ne c.
+\end{align*}
+
+(g)
+
+\includegraphics{assignment1/q3_word_vectors.png}
+
+The plot is a 2-D projection of the word vectors trained from our corpus. We see that a number of generic quality-describing adjectives are clustered together (amazing, wonderful, great) along with some less general but still quite versatile ones (sweet, dumb, boring, enjoyable). Interestingly, ``waste" is also clustered pretty closely to these words; it is often used in a similar context (``x was a waste of time" vs. ``x was boring") although it is a noun rather than an adjective.
 \end{document}

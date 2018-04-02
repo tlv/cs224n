@@ -15,7 +15,7 @@ def normalizeRows(x):
     """
 
     ### YOUR CODE HERE
-    raise NotImplementedError
+    return x / np.array([np.linalg.norm(x, axis=1)]).T
     ### END YOUR CODE
 
     return x
@@ -58,7 +58,11 @@ def softmaxCostAndGradient(predicted, target, outputVectors, dataset):
     """
 
     ### YOUR CODE HERE
-    raise NotImplementedError
+    y_pred = softmax(predicted.dot(outputVectors.T))
+    cost = -np.log(y_pred[target])
+    y_pred[target] -= 1
+    gradPred = y_pred.dot(outputVectors)
+    grad = np.array([y_pred]).T.dot(np.array([predicted]))
     ### END YOUR CODE
 
     return cost, gradPred, grad
@@ -96,7 +100,16 @@ def negSamplingCostAndGradient(predicted, target, outputVectors, dataset,
     indices.extend(getNegativeSamples(target, dataset, K))
 
     ### YOUR CODE HERE
-    raise NotImplementedError
+    U = -np.array([outputVectors[idx] for idx in indices])
+    U[0] = -U[0]
+    sigs = sigmoid(U.dot(predicted))
+    cost = -np.sum(np.log(sigs))
+    gradPred = (outputVectors[indices[0]] * (sigs[0] - 1)) + sum(
+        outputVectors[indices[k + 1]] * (1 - sigs[k + 1]) for k in range(K))
+    grad = np.zeros(outputVectors.shape)
+    grad[indices[0]] += predicted * (sigs[0] - 1)
+    for k in range(K):
+        grad[indices[k + 1]] += predicted * (1 - sigs[k + 1])
     ### END YOUR CODE
 
     return cost, gradPred, grad
@@ -131,7 +144,14 @@ def skipgram(currentWord, C, contextWords, tokens, inputVectors, outputVectors,
     gradOut = np.zeros(outputVectors.shape)
 
     ### YOUR CODE HERE
-    raise NotImplementedError
+    cur_idx = tokens[currentWord]
+    predicted = inputVectors[cur_idx]
+    for w in contextWords:
+        cost_, gradPred, grad = word2vecCostAndGradient(
+            predicted, tokens[w], outputVectors, dataset)
+        cost += cost_
+        gradIn[cur_idx] += gradPred
+        gradOut += grad
     ### END YOUR CODE
 
     return cost, gradIn, gradOut
@@ -155,7 +175,7 @@ def cbow(currentWord, C, contextWords, tokens, inputVectors, outputVectors,
     gradOut = np.zeros(outputVectors.shape)
 
     ### YOUR CODE HERE
-    raise NotImplementedError
+    pass
     ### END YOUR CODE
 
     return cost, gradIn, gradOut

@@ -4,3 +4,5 @@
 *.swp
 staging.*
 *.pyc
+assignments/assignment1/assignment1/utils/*
+*.npy
