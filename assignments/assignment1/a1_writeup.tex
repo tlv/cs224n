@@ -152,4 +152,81 @@ For CBOW, we have
 \includegraphics{assignment1/q3_word_vectors.png}
 
 The plot is a 2-D projection of the word vectors trained from our corpus. We see that a number of generic quality-describing adjectives are clustered together (amazing, wonderful, great) along with some less general but still quite versatile ones (sweet, dumb, boring, enjoyable). Interestingly, ``waste" is also clustered pretty closely to these words; it is often used in a similar context (``x was a waste of time" vs. ``x was boring") although it is a noun rather than an adjective.
+
+\section{Problem 4}
+(b) Regularization prevents overfitting by establishing a prior that all parameters of the model are close to zero. This incentivizes the model to only focus on the most informative features instead of overfitting on all the data provided (possibly fitting on random noise).
+
+(c)
+\begin{verbatim}
+def chooseBestModel(results):
+    """Choose the best model based on dev set performance.
+
+    Arguments:
+    results -- A list of python dictionaries of the following format:
+        {
+            "reg": regularization,
+            "clf": classifier,
+            "train": trainAccuracy,
+            "dev": devAccuracy,
+            "test": testAccuracy
+        }
+
+    Each dictionary represents the performance of one model.
+
+    Returns:
+    Your chosen result dictionary.
+    """
+    bestResult = None
+
+    ### YOUR CODE HERE
+    bestDevAccuracy = 0
+    for result in results:
+        if result['dev'] > bestDevAccuracy:
+            bestDevAccuracy = result['dev']
+            bestResult = result
+    ### END YOUR CODE
+
+    return bestResult
+\end{verbatim}
+
+(d) We tried both the pretrained GloVe vectors as well as our custom trained vectors on this task with regularization values [0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30, 100]. 
+
+For the GloVe vectors, the best training accuracy we saw was 39.923\% with a regularization value of 0.01, the best dev accuracy we saw was 36.966\% with a regularization value of 3 (with test accuracy of 37.195\%), and the best test accuracy we saw was 37.692\% with a regularization value of 10 (although this doesn't really count).
+
+For the custom vectors, the best training accuracy we saw was 30.946\% with a regularization value of 0.01, the best dev accuracy we saw was 32.334\% with a regularization value of 0.01 (with test accuracy of 29.910\%), and the best test accuracy we saw was 30.045\% with a regularization value of 0.03 (although this doesn't really count).
+
+The pretrained vectors probably did better for the following reasons:
+\begin{itemize}
+\item The pretrained vectors were trained on a larger corpus, which allowed them to better represent the meanings of the words.
+\item The pretrained vectors had more dimensions (50 vs. 10). The custom vectors were probably underfitting due to a lack of information.
+\item The pretrained vectors were probably trained for more iterations. If we allowed SGD on our custom vectors to run for a longer time, it's possible that it could have continued to improve. (Would have to check a plot of the objective function versus the number of training iterations to back this claim up.)
+\end{itemize}
+
+(e)
+
+\includegraphics{assignment1/q4_reg_v_acc.png}
+
+We see that training accuracy falls as the regularization value goes up, which makes sense - a lower regularization value gives the model ``more freedom" to fit the training data more closely. We also see that dev accuracy is lower for low regularization values, indicating overfitting, and that dev accuracy drops sharply after a regularization value of 30, indicating underfitting.
+
+(f)
+
+\includegraphics{assignment1/q4_dev_conf.png}
+
+We see that the model appears to have a strong bias for predicting labels 1 and 3 (in particular, the model predicts far more items in those categories than there are in the actual dataset). Given this, however, the model appears to do reasonably well and seems to misclassify few true 4's as 1's and few true 0's as 3's.
+
+(g)
+\begin{itemize}
+\item ``and if you 're not nearly moved to tears by a couple of scenes , you 've got ice water in your veins ." (Predicted: 1, Actual: 3)
+\begin{itemize}
+\item The classifier probably learned a negative sentiment on the word ``tears" (and maybe also ``ice" and ``water"), causing it to misclassify this sentence due to being unable to learn on the phrase ``moved to tears" and not being able to identify the contrasting nature of this sentence (it's making a positive statement by juxtaposing two negatives).
+\end{itemize}
+\item ``there 's enough melodrama in this magnolia primavera to make pta proud yet director muccino 's characters are less worthy of puccini than they are of daytime television ." (Predicted: 4, Actual: 2)
+\begin{itemize}
+\item There appears to be lots of positive words here (``proud", ``puccini", ``worthy"), but the qualification of ``worthy" with ``less" was probably not picked up on by the classifier, and perhaps the negative sentiment of ``television" was not enough to overcome those positive words.
+\end{itemize}
+\item ``with the exception of some fleetingly amusing improvisations by cedric the entertainer as perry 's boss , there is n't a redeeming moment here ." (Predicted: 1, Actual: 0)
+\begin{itemize}
+\item The model probably detected a positive word (amusing) but, being a bag-of-words model, failed to see that ``amusing" was qualified by ``fleetingly", lessening its contribution to the overall meaning of the sentence.
+\end{itemize}
+\end{itemize}
 \end{document}

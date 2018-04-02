@@ -6,3 +6,4 @@ staging.*
 *.pyc
 assignments/assignment1/assignment1/utils/*
 *.npy
+assignments/assignment1/assignment1/q4_dev_pred.txt
