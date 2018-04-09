@@ -1,0 +1,49 @@
+Two main models of linguistic structure are used these days. 
+\begin{itemize}
+\item One is the constituency model, also commonly referred to as phrase structure grammar model or the context free grammar model. This attempts to organize words into nested constituents (noun phrase, verb phrase, prepositional phrase, etc.) and define how these constituents can be constructed (e.g. a noun phrase is a determinant, followed by an arbitrary number of optional adjectives, followed by a noun, folllowed by an arbitrary number of optional prepositional phrases).
+\item The other is the dependency model, which the rest of this section will focus on. In this model, we typically just care about which words depend on (modify or are arguments of) which other words. Oftentimes dependency structures are depicted with dependency diagrams, in which dependencies between words in a sentence are indicated with arrows pointing from words to the words dependent on them.
+\end{itemize}
+Sometimes, the meaning of a sentence can be ambiguous, e.g. ``Scientists study whales from space." Ambiguities such as these often come from ambiguous dependency structures (does ``from space" depend on ``whales" or ``study"?).
+
+To train sentence-parsing models using dependency structures, there are ``treebanks," which are datasets of dependency-annotated sentences. While intuitively it may seem advantageous for the field to spend time designing grammars instead of manually annotating sentences (grammars generalize, annotating sentences is very slow, etc.), it turns out that human-created grammars differ a lot and that the work involved in designing grammars isn't very reusable, while treebanks are highly reusable and provide a useful ground truth for future work.
+
+In a dependency syntax, we represent sentences as directed graphs of words, where words are nodes and edges point from ``head" nodes to ``dependent" nodes (dependent nodes depend on head nodes). Edges are often also annotated with the type of dependence (e.g. auxiliary, case, subject, etc.). Normally, this graph is a tree: it has a single root, is acyclic, and is connected. Usually there will also be a pseudoword ROOT in the sentence so that every other word in the sentence depends on one word.
+
+When evaluating the plausibility of a dependence from one word to another in a sentence, there are various information sources that we can draw from:
+\begin{itemize}
+\item Bilexical affinities (is it reasonable, based on the definitions of the word, for word A to depend on word B?)
+\item Distance (words are generally more likely to depend on nearby words)
+\item Intervening material (e.g. an adjective and the noun it's modifying are unlikely to have a verb between them)
+\item Valency of heads (certain words are likely to have certain numbers of dependents on the left and/or right side; e.g. determinants are unlikely to have any dependents; nouns might have many dependents but determiners and adjectives typically are on the left, while prepositional phrases are likely to be on the right).
+\end{itemize}
+
+To parse a sentence, we must decide for each word which other word it depends on. Usually we constrain the total space of possibilities by enforcing that only one word depends on ROOT, and that dependencies cannot form cycles, which guarantees that our dependency graph will be a tree. We also say that a dependency graph is projective if, when we draw it with the words in order and all edges as ``straight" arcs (i.e. never change their left-right direction) going over the row of words, we can draw it in such a way that the arcs don't cross.
+
+There are various methods for doing dependency parsing:
+\begin{itemize}
+\item Dynamic programming (runs in $O(n^3)$)
+\item Graph algorithms (minimum spanning tree)
+\item Constraint Satisfaction: eliminate edges that don't satisfy hard constraints
+\item ``Transition-based parsing." Slightly less accurate than graph algorithms, but is a greedy algorithm that runs in linear time. This is what's most commonly used today.
+\end{itemize}
+\subsection{Arc-standard transition-based parser}
+The arc-standard transition-based parser is one form of transition-based parsing (there are others). In this algorithm, we have a buffer $\beta$ that initially consists of all the words of the sentence in order from left to right, and a stack $\sigma$ that initially contains one element: ROOT. At each step, we have three operations that we can perform:
+\begin{enumerate}
+\item Shift. This pops the leftmost word from $\beta$ and pushes it onto $\sigma$.
+\item Left Arc. This sets the second-from-the-top element of the stack as dependent on the top element of the stack and removes the second-from-the-top element.
+\item Right Arc. The same as left arc, but the top element is the dependent instead of the head.
+\end{enumerate}
+As an example, we perform this algorithm on the simple sentence ``I ate fish." In this example, the right side of the stack is the top.
+\begin{enumerate}
+\item At the beginning, we have $\sigma = [\text{ROOT}], \beta = [\text{I}, \text{ate}, \text{fish}].$
+\item We perform two shift operations, and now we have $\sigma = [\text{ROOT}, \text{I}, \text{ate}], \beta = [\text{fish}].$
+\item We perform a left-arc, so now `I' depends on `ate' and is removed from $\sigma$, so we have $\sigma = [\text{ROOT}, \text{ate}], \beta = [\text{fish}].$
+\item We now perform another shift, giving $\sigma = [\text{ROOT}, \text{ate}, \text{fish}]$, and $\beta$ is now empty.
+\item We follow this up with a right-arc, so `fish' depends on `ate', and now $\sigma = [\text{ROOT}, \text{ate}].$
+\item Finally, we perform another right-arc, and $\sigma = [\text{ROOT}]$, `ate' depends on ROOT, and `I' and `fish' depend on `ate'.
+\end{enumerate}
+To train a model to actually do this, we can use the a treebank - given the dependency structure, we can figure out which sequence of shifts and left/right-arcs will give us the correct structure. This allows us to train a classifier on which operation is correct at each step. In the model above, we have 3 possible operations at each step, but in practice we also want to label each dependency in a dependency structure with a type (i.e. not just that `fish' depends on `ate', but that it is specifically the object of `ate'). To accommodate this, we have a different left-arc and right-arc operation for each dependency type, giving $2R+1$ total distinct operations, where $R$ is the number of types of dependencies. These dependencies are often scored using two metrics: UAS, which counts the percentage of dependency arrows that are correct, and LAS, which counts the percentage of depdency arrows that are both correct \emph{and} correctly labeled.
+
+These classifiers were commonly built with sparse feature representations at first, where we use binary vectors where an element is 1 if some specific position on either the stack or the buffer contains some specific word in some specific part of speech (e.g. `set' can be multiple parts of speech depending on context). However, you often end up with $O(10^7)$ features, which causes issues where there are too many possible configurations of features, some of which you will almost certainly never see in your training data. The vast feature space also makes for rather expensive computation.
+
+So instead, we can learn a dense feature representation. We use $d$-dimensional distributed representations of words, and also smaller-dimensioned distributed representations of parts of speech. We can then extract features by looking at certain stack/buffer positions and concatenating the word/POS vectors. We can then learn on these features with a neural network; it turns out a single hidden layer with a ReLU activation function and an output layer with a softmax activation function works pretty well.
