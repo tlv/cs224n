@@ -1,0 +1,117 @@
+TensorFlow (TF) is a deep learning framework from Google. There are various reasons why these frameworks are useful:
+\begin{itemize}
+\item Provides simple ways to make ML code to run at massive scales
+\item Compute gradients automatically
+\item Standardizes ML so that work can be shared more easily
+\item Allows easy interfacing with GPUs
+\end{itemize}
+The core idea of TF is that numerical computation is a graph, where nodes are operations, and they take inputs and transmit outputs via edges. In addition to ``normal" operations such as addition or matrix multiplication, there are also two important special types of operations:
+\begin{itemize}
+\item Variables, which output their current value. The current value is stored as state of the node. Gradient descent updates will also by default update all variables in the graph. Usually these will be the parameters of your model.
+\item Placeholders, which are nodes whose values are fed in at execution time. Usually these will be the training inputs/labels of your model.
+\end{itemize}
+As an example, the equation $h = ReLU(Wx + b)$ (which could represent a one-layer neural network with a ReLU activation function) would be expressed as graph in Figure \ref{fig7-1}.
+\begin{figure}
+\centering
+\begin{tikzpicture}[
+    tfvar/.style={shape=circle, draw=black, minimum size=1cm},
+    tfph/.style={shape=diamond, draw=black, minimum size=1cm},
+    tfop/.style={shape=rectangle, draw=black, minimum width=3cm, minimum height=1cm},
+]
+\node[tfvar] (W) at (2, 0) {$W$};
+\node[tfph] (x) at (6, 0) {$x$};
+\node[tfvar] (b) at (0, 2) {$b$};
+\node[tfop] (mul) at (4, 2) {MatMul};
+\node[tfop] (add) at (4, 4) {Add};
+\node[tfop] (relu) at (4, 6) {ReLU};
+
+\path[->]
+    (W) edge node {} (mul)
+    (x) edge node {} (mul)
+    (b) edge node {} (add)
+    (mul) edge node {} (add)
+    (add) edge node {} (relu)
+;
+\end{tikzpicture}
+\caption{The expression $ReLU(Wx + b)$ as a TF computation graph.} \label{fig7-1}
+\end{figure}
+In code, this might be (assuming that we have 784-dimensional training examples in batches of 2000, and that our output is 100-dimensional):
+\begin{python}
+import tensorflow as tf
+
+b = tf.Variable(tf.zeros((100,)))
+W = tf.Variable(tf.random_uniform((100, 784), -1, 1))
+
+x = tf.placeholder(tf.float32, (784, 2000))
+
+h = tf.nn.relu(tf.matmul(x, W) + b)
+\end{python}
+
+Now to actually run this computation, we need to deploy it in a TF session, which binds to a particular execution context (e.g. CPU, GPU, TPU). When running a session, we need to provide two arguments:
+\begin{itemize}
+\item Fetches. This is the list of graph nodes whose values we care about. These will be returned by the \pyth{run} function.
+\item Feeds. This maps graph nodes to specified concrete values, and e.g. allows us to specify the values of placeholders.
+\end{itemize}
+If we extend our code example from earlier to run the graph, it might look like this:
+\begin{python}
+import tensorflow as tf
+
+b = tf.Variable(tf.zeros((100,)))
+W = tf.Variable(tf.random_uniform((100, 784), -1, 1))
+
+x = tf.placeholder(tf.float32, (784, 2000))
+
+h = tf.nn.relu(tf.matmul(x, W) + b)
+
+sess = tf.Session()
+sess.run(tf.initialize_all_variables())
+sess.run(h, {x: np.random.random(784, 2000)})
+\end{python}
+In the last line, \pyth{h} is our fetch and \pyth{x} is our feed. Here we're just initializing our training data randomly; in an actual application we'd probably load it in from somewhere. The \pyth{Session} constructor could optionally also take a computation environment as a function parameter. (There's probably other function parameters as well.)
+
+We now need to define a loss function. To do this, we create a placeholder for the training labels and create a loss node using those and our prediction values:
+\begin{python}
+prediction = tf.nn.softmax(h)
+label = tf.placeholder(tf.float32, [100, 2000])
+# cross entropy per example
+cross_entropy = -tf.reduce_sum(label * tf.log(prediction), axis=1)
+\end{python}
+Then to actually train the model, we need to perform gradient descent. We can use an Optimizer object, which allows us to add an optimization operation to our computation graph. For example, to perform gradient descent, we can do:
+\begin{python}
+train_step = tf.train.GradientDescentOptimizer(0.5).minimize(cross_entropy)
+\end{python}
+Here 0.5 is a learning rate, and \pyth{train_step} now refers to a optimization operation node. When we run \pyth{train_step} in a session, it does two things: it calculates the gradients with respect to the variables in the graph, and it also adjusts the values of the variables according to those gradients. TF is able to calculate these gradients because each graph node has an attached gradient operation, and the graph structure of the computation allows TF to easily apply the chain rule.
+
+To tie this all together, our final code might look like this:
+\begin{python}
+import tensorflow as tf
+from . import data  # some data loading code you defined
+
+b = tf.Variable(tf.zeros((100,)))
+W = tf.Variable(tf.random_uniform((100, 784), -1, 1))
+
+x = tf.placeholder(tf.float32, (784, 2000))
+h = tf.nn.relu(tf.matmul(x, W) + b)
+
+prediction = tf.nn.softmax(h)
+label = tf.placeholder(tf.float32, [100, 2000])
+# cross entropy per example
+cross_entropy = -tf.reduce_sum(label * tf.log(prediction), axis=1)
+
+train_step = tf.train.GradientDescentOptimizer(0.5).minimize(cross_entropy)
+
+for i in range(1000):  # train on 1000 batches
+    batch_x, batch_label = data.next_batch()
+    sess.run(
+        train_step, 
+        feed_dict={
+            x: batch_x,
+            label: batch_label
+        }
+    )
+\end{python}
+
+\subsection{Variable sharing}
+Sometimes we want to use multiple machines to train our models, and we need to share variables between them. TF has a concept called variable sharing that allows us to do this. In TF, we can enter a variable scope using \pyth{with tf.variable_scope('foo')}, and within that scope, we can call \pyth{tf.get_variable('v')}.
+
+We can use \pyth{get_variable} to create new variables or access the values of existing ones. Its exact behavior depends on the value of the \pyth{reuse} keyword argument passed to the enclosing \pyth{variable_scope} (details can be found on the official TF documentation).
