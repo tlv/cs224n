@@ -1,0 +1,114 @@
+A language model is a model that predicts the probability of a sequence of words: $p(w_1, w_2, \dots, w_T)$. Language models have applications in machine translation (e.g. $p(\text{the cat is small}) > p(\text{small is the cat}))$ and speed recognition (e.g. $p(\text{walking home after school}) > p(\text{walking hone after school}))$, among other things. 
+
+\subsection{Traditional Language Models}
+Traditional language models are typically set up so that the probability of a word is conditioned on a window of $n$ previous words. For reasons of computational complexity, $n$ is usually small; as $n$ increases, performance improves significantly, but the storage and training time requirements grow extremely quickly. Thus these models are pretty limited, since words in a language often depend on other words that occurred quite long ago.
+
+In a traditional language model, if $n = 2$, we might estimate probabilities based on the last word and the last two words like so:
+$$p(w_2 | w_1) = \frac{\text{count}(w_1w_2)}{\text{count}(w_1)}$$
+$$p(w_3 | w_1, w_2) = \frac{\text{count}(w_1w_2w_3)}{\text{count}(w_1w_2)}$$
+
+\subsection{Recurrent Neural Networks}
+A recurrent neural network (RNN) is basically a neural network that produces an output at each time step $t$, and where the hidden layer at time $t-1$ feeds into the hidden layer at time $t$. Mathematically, suppose that we have a vocabulary $V$ and a corpus/document represented as a list of word vectors $x_{[1]}, x_{[2]}, \dots, x_{[t-1]}, x_{[t]}, x_{[t+1]}, \dots, x_{[T]}$. Then at each time step $t$, we perform:
+\begin{itemize}
+\item $h_t = \sigma(W^{(hh)}h_{t-1} + W^{(hx)}x_{[t]})$
+\item $\hat{y}_t = \text{softmax}(W^{(S)}h_t)$
+\item Predict $\hat{P}(x_{[t+1]} = v_j \in V | x_{[t]}, \dots, x_{[1]}) = \hat{y}_{t,j}$.
+\end{itemize}
+Here $W^{(hh)} \in \mathbb{R}^{D_h \times D_h}, W^{(hx)} \in \mathbb{R}^{D_h \times d}, W^{(S)} \in \mathbb{R}^{|V| \times D_h}$ are three separate weight matrices (shared across all time steps) that are used in different parts of the model. Sharing these weights between time steps effectively allows the model to ``remember" what happened more than a few words ago, so that we can build a more effective language model.
+
+\begin{figure}
+\centering
+\begin{tikzpicture}[
+    rnnstep/.style={shape=circle, draw=black, minimum size=1cm},
+    rnnempty/.style={shape=circle, draw opacity=0, minimum size=1cm},
+]
+
+\node[rnnempty] (hm2) at (0, 2) {$\dots$};
+\node[rnnempty] (ym1) at (2, 4) {$\vdots$};
+\node[rnnempty] (xm1) at (2, 0) {$\vdots$};
+\node[rnnstep] (hm1) at (2, 2) {$h_{t-1}$};
+\node[rnnstep] (h0) at (4, 2) {$h_t$};
+\node[rnnstep] (y0) at (4, 4) {$y_t$};
+\node[rnnstep] (x0) at (4, 0) {$x_{[t]}$};
+\node[rnnstep] (h1) at (6, 2) {$h_{t+1}$};
+\node[rnnempty] (y1) at (6, 4) {$\vdots$};
+\node[rnnempty] (x1) at (6, 0) {$\vdots$};
+\node[rnnempty] (h2) at (8, 2) {$\dots$};
+
+\path[->]
+    (hm2) edge node {} (hm1)
+    (xm1) edge node {} (hm1)
+    (hm1) edge node {} (ym1)
+    (hm1) edge node {} (h0)
+    (x0) edge node {} (h0)
+    (h0) edge node {} (y0)
+    (h0) edge node {} (h1)
+    (h1) edge node {} (y1)
+    (x1) edge node {} (h1)
+    (h1) edge node {} (h2)
+;
+\end{tikzpicture}
+\caption{A common visualization of RNNs.}
+\end{figure}
+
+As a minor detail of implementation, we typically initialize $h_0$ to a vector of all zeros so that there is some defined starting value.
+
+With this RNN, we can define a loss function. Since $\hat{y}_t$ gives us a probability distribution over $V$, we can calculate the cross entropy loss at each time step:
+$$J^{(t)} = \sum_{j=1}^{|V|} y_{t,j} \log{\hat{y}_{t,j}}$$
+After calculating these, we typically use perplexity as a loss function (lower is better):
+$$E = \text{perplexity} = 2^{\sum_t J^{(t)}}.$$
+However, training these RNNs is very hard, as inputs from many time steps ago can influence the current prediction/gradient. The next section, while focused on a different issue of RNNs, will illustrate the complexity in computing the gradients of RNNs.
+
+\subsection{The vanishing gradient problem}
+An issue with RNNs is that the gradients of $E$ with respect to the weight matrices tend to vanish or explode after a certain number of time steps. To see why this is, consider a simpler RNN with:
+$$h_t = Wf(h_{t-1}) + W^{(hx)}x_{[t]}$$
+$$\hat{y}_t = W^{(S)}f(h_t),$$
+where $f$ is some nonlinear activation function. Let $E_t$ be the loss at time step $t$ (i.e. the loss for the prediction of $y_t$). Then the total error $E$ is the sum of all the $E_t$, so
+$$\pd{E}{W} = \sum_{t=1}^T \pd{E_t}{W}.$$
+Then we have
+$$\pd{E_t}{W} = \sum_{k=1}^t \pd{E_t}{\hat{y}_t} \pd{\hat{y}_t}{h_t} \pd{h_t}{h_k} \pd{h_k}{W}.$$
+(Note that this is already getting very complex.) We then have
+$$\pd{h_t}{h_k} = \prod_{j=k+1}^t \pd{h_j}{h_{j-1}}.$$
+It should be noted that $\partial h_j / \partial h_{j-1}$ is a Jacobian, i.e.
+$$\pd{h_j}{h_j-1} = \left[
+\begin{array}{ccc}
+\pd{h_{j, 1}}{h_{j-1, 1}} & \cdots & \pd{h_{j, 1}}{h_{j-1, n}} \\
+\vdots & \ddots & \vdots \\
+\pd{h_{j, n}}{h_{j-1, 1}} & \cdots & \pd{h_{j, n}}{h_{j-1, n}} \\
+\end{array}
+\right]$$
+Let
+$$\|A\| = \sum\sum a_{ij}^2$$
+be the Frobenius norm of a matrix $A$. It is well known that $\|AB\| \le \|A\|\|B\|.$ Then letting $\beta_W$ and $\beta_h$ be upper bounds on $\|W\|$ and $\max_t \|\text{diag}(f'(h_t))\|$, respectively, we have
+\begin{align*}
+\left\| \pd{h_j}{h_{j-1}} \right\| &= \left\| \pd{}{h_j-1}\left(Wf(h_{j-1})\right)\right\| \\
+&= \left\|W \text{diag}\left(f'(h_{j-1})\right)\right\| \\
+&\le \left\|W\right\|\left\| \text{diag}\left(f'(h_{j-1})\right) \right\| \\
+&\le \beta_W \beta_h.
+\end{align*}
+This implies
+$$\left\|\pd{h_t}{h_k}\right\| = \left| \prod_{j=k+1}^t \pd{h_j}{h_{j-1}} \right| \le (\beta_W \beta_h)^{t-k}.$$
+This last expression is exponential, so it will either explode or vanish rapidly.
+
+The issue with vanishing gradients is that it makes it difficult for the model to use words from the relatively distant past to make predictions about a word at time $t$, as any contribution to the gradient of $E$ with respect to $W$ will be vanishingly small (so the model can't update on that information). An example of a simple prediction where an RNN suffering from vanishing gradients would have trouble on is:
+\begin{itemize}
+\item Jane walked into the room. John walked in too. It was late in the day. Jane said hi to $\rule{1cm}{0.1mm}$. (It's very easy to see that the next word should probably be ``John".)
+\end{itemize}
+
+The exploding gradient problem is relatively easy to solve - if the gradient $g = \partial E/\partial W$ satisfies $\| g \| > \tau$ for some threshold $\tau$, then we simply do
+$$g := \frac{\tau}{\| g\|}g,$$
+thus effectively capping $\|g\|$ at $\tau$. This basically prevents us from getting too far away from our previous model if we encounter a point in our parameter space where the gradient is very large. However, an analogous solution for vanishing gradients would not work, since it would add too much random noise. But One simple solution for vanishing gradients is to initialize the $W$ matrices to the identity and to use the ReLU activation function (won't go into why this works but it does).
+
+As presented, RNNs are incredibly computationally intensive to train. However, there are a few optimizations that we can do in practice:
+\begin{itemize}
+\item Instead of computing the softmax over the entire vocabulary, we can first compute a softmax over categories of words, and then perform a second softmax over the words within that category. This is similar to hierarchical softmax.
+\item To update each $E_t$, we only need to do one backwards propagation at the end, instead of performing a backward pass on the neural net at every single time step.
+\end{itemize}
+
+Common extensions of RNNs include bidirectional RNNs and deep RNNs. The equations for a bidirectional RNN are slightly different - instead of one hidden representation layer $h$ that only depends on past words, we have two hidden representations - $\overrightarrow{h}$ that depends on past words and $\overleftarrow{h}$ that depends on future words. Then the equations look like:
+\begin{align*}
+\overrightarrow{h}_t &= f(\overrightarrow{W}x_t + \overrightarrow{V}h_{t-1} + \overrightarrow{b}) \\
+\overleftarrow{h}_t &= f(\overleftarrow{W}x_t + \overleftarrow{V}h_{t+1} + \overleftarrow{b}) \\
+y_t &= g(U[\overrightarrow{h}_t; \overleftarrow{h}_t] + c)
+\end{align*}
+Deep RNNs are similar, except that they might have multiple hidden layers $h^{(1)}, h^{(2)}, etc.$ with every hidden layer feeding into the next at each timestamp. (Deep RNNs can also be bidirectional.)
