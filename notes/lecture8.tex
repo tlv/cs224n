@@ -90,7 +90,7 @@ This implies
 $$\left\|\pd{h_t}{h_k}\right\| = \left| \prod_{j=k+1}^t \pd{h_j}{h_{j-1}} \right| \le (\beta_W \beta_h)^{t-k}.$$
 This last expression is exponential, so it will either explode or vanish rapidly.
 
-The issue with vanishing gradients is that it makes it difficult for the model to use words from the relatively distant past to make predictions about a word at time $t$, as any contribution to the gradient of $E$ with respect to $W$ will be vanishingly small (so the model can't update on that information). An example of a simple prediction where an RNN suffering from vanishing gradients would have trouble on is:
+The issue with vanishing gradients is that it makes it difficult for the model to use words from the relatively distant past to make predictions about a word at time $t$, as any contribution of those words to the gradient of $E$ with respect to $W$ will be vanishingly small (so the model can't update on that information). An example of a simple prediction where an RNN suffering from vanishing gradients would have trouble on is:
 \begin{itemize}
 \item Jane walked into the room. John walked in too. It was late in the day. Jane said hi to $\rule{1cm}{0.1mm}$. (It's very easy to see that the next word should probably be ``John".)
 \end{itemize}
