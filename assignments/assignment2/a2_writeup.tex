@@ -47,4 +47,6 @@ so $\gamma = 1/(1 - p_{drop})$.
 \item (i) Momentum basically slows the rate at which we adjust our updates: instead of immediately updating using the current gradient, we instead continue mostly going in the direction of our previous momentum and only assign a partial influence to the current gradient on our next update. This can help us avoid large ``bad" updates when we see a particularly anomalous batch of training data or when we hit a particularly steep gradient wall.
 \item (ii) Adam amplifies the movement of parameters with small gradient contributions and reduces that of parameters with large gradient contributions. This can help in cases where we might have large almost-flat regions and small steep walls in our gradient function.
 \end{itemize}
+
+(h) The best dev UAS was 88.71, and the tes UAS was 89.19.
 \end{document}
