@@ -1,0 +1,84 @@
+Machine translation (MT) is the problem of taking text in a source language (e.g. French) and translating it to a different language (e.g. English). MT models are mostly statistical models and are trained on parallel corpora, which are basically ``copies" of ``the same text" in multiple languages.
+
+In a traditional MT model, you might have a sentence in a source language $f$. Given this, the model will attempt to find the most likely translation
+$$\hat{e} = \text{argmax}_e p(e | f) = \text{argmax}_e p(f|e)p(e),$$
+by Bayes' Theorem (we ignore the $p(f)$ factor because $f$ is given). Here $e$ represents a sentence in the target language. The MT model is then made up of two components:
+\begin{itemize}
+\item A translation model that trains $p(f|e)$ on a parallel corpus
+\item A language model that trains $p(e)$ on a single-language corpus.
+\end{itemize}
+The whole model might then take a source sentence $f$, calculate $p(f'|e)$ using the translation model for some phrases in $e$ that might match up with phrases $f'$ in the source sentence, calculate $p(e)$ for those phrases using the language model, and then combine and reorder everything in a decoder (a separate model).
+
+The problem that the first part of such a model solves (finding translations for single words or short phrases in $f$) is called alignment. This problem is already hard for multiple reasons, which we will illustrate with examples in translating from English (source language) to French (target language):
+\begin{itemize}
+\item We might have \emph{spurious words} which appear in the target sentence but have no counterpart in the source sentence: ``Japan shaken by two new quakes" $\rightarrow$ ``\textbf{Le} Japon secou\'e par deux nouveaux s\'eismes"
+\item As in ``\textbf{And} the program has been \textbf{implemented}" $\rightarrow$ ``Le programme a \'et\'e \textbf{mis en application}", we may have \emph{zero fertility words} (such as ``And"), which are present in the source sentence but have no counterpart in the target sentence, and \emph{one-to-many alignments} (``implemented" $\rightarrow$ ``mis en application"), where a single word in the source sentence maps to multiple words in the target sentence.
+\item We can also have \emph{many-to-one alignments}, e.g. in ``The balance was the territory of the aboriginal people" $\rightarrow$ ``Le reste appartenait aux autochtones", we have ``was the territory" $\rightarrow$ ``appartenait"; ``of the" $\rightarrow$ ``aux"; and ``aboriginal people" $\rightarrow$ ``autochtones".
+\item Lastly, we can have \emph{many-to-many alignments}; in ``The poor don't have any money" $\rightarrow$ ``Les pauvres sont d\'emunis", ``don't have any money" becomes ``sont d\'emunis".
+\end{itemize}
+We see that it's pretty hard just to figure out which words are ``standalones" and which words are parts of larger phrases. After doing this, we need to search over all the different sentence possibilities that arise as a result of the alignment step's results (of which there can be many, given that there might be multiple candidate phrase structures and that phrases could be reordered in the target language). 
+
+Overall, traditional MT usually involves lots of manual feature engineering and independently training many different models.
+
+\subsection{RNNs?}
+We could try to train an RNN-based MT model:
+\begin{itemize}
+\item We start with an encoder. Supposing we have $n$ input words, we need $n$ time steps in the encoder RNN, and at each time step $t$, we have a hidden vector $h$ and an input vector $x$, specified by
+$$h_t = f\left(W^{(hh)}h_{t-1} + W^{(hx)}x_t\right) = \phi(h_{t-1}, x_t),$$
+where $\phi$ just denotes an activation function applied to some linear combination of its inputs.
+\item We then have a decoder, which starts with $h_n$ and outputs predicted words $y_j$ using the relationships ($t > n$)
+\begin{align*}
+h_t &= f(W^{(hh)}h_{t-1}) = \phi(h_{t-1})\\
+y_t &= \text{softmax}(W^{(s)}h_t).
+\end{align*}
+This decoder will output words until it decides to output a special ``STOP" word.
+\item We have the model minimize the loss function
+$$-\frac{1}{N} \sum_{n=1}^N \log p_\theta(y^{(n)} | x^{(n)}).$$
+\end{itemize}
+However, this isn't really powerful enough for MT; a major reason is that this model requires $h_n$ to hold all the information needed to produce the output sentence. There are a few extensions we can make:
+\begin{itemize}
+\item We can train two different $W^{(hh)}$ matrices - one for encoding and one for decoding.
+\item We can feed more inputs into the computation of each decoding hidden unit. In the above model, $h_t$ depends only on $h_{t-1}$, but we can make it depend on $h_n$ (the last hidden unit from the encoding stage) and the previous predicted word $y_{t-1}$ (converted to a single word, rather than the predicted probability distribution) as well.
+\item We can stack multiple RNNs to create a deep network.
+\item We can train a bidirectional encoder.
+\item We can input the source sentence in reverse order; this puts the initial words of the source sentence ``close to" the initial output words in the architecture.
+\end{itemize}
+However, the key improvement is to create a more complex hidden unit.
+
+\subsection{Gated recurrent units (GRUs)}
+A classical RNN calculates a simple hidden unit at each time step $t$:
+$$h_t = f\left(W^{(hh)}h_{t-1} + W^{(hx)}s_t\right).$$
+A GRU is a little more complex. At each time step $t$, it calculates:
+\begin{itemize}
+\item An update gate:
+$$z_t = \sigma\left(W^{(z)}x_t + U^{(z)}h_{t-1}\right)$$
+\item A reset gate, similar to the update gate but with a different set of weights:
+$$r_t = \sigma\left(W^{(r)}x_t + U^{(r)}h_{t-1}\right)$$
+\item A new memory:
+$$\tilde{h}_t = \tanh\left(Wx_t + r_t \circ Uh_{t-1}\right),$$
+where $\circ$ denotes an elementwise product, and
+\item The next hidden layer:
+$$h_t = z_t \circ h_{t-1} + (1 - z_t) \circ \tilde{h}_t.$$
+\end{itemize}
+Intuitively, the update gate allows the model to ``forget" values from the previous timestamp if it decides that they are irrelevant to the future (if $z_t$ is close to 0), or ``focus" on the historical information while giving less importance to the new information. Similarly, the reset gate allows the model to ``forget" old information in its memory unit if it deems it to be irrelevant for the future. The update gate can also help the model mitigate the vanishing gradient problem: if the model thinks a certain piece of information is important for the future, it can keep the values in $z_t$ very close to 1, which will propagate gradient values close to 1.
+
+\subsection{LSTMs}
+Long short-term memory (LSTM) units are a generalization of GRUs. They have a few more definitions at each time step:
+\begin{itemize}
+\item An input gate:
+$$i_t = \sigma\left(W^{(i)}x_t + U^{(i)}h_{t-1}\right)$$
+Intuitively, this tells the model whether to continue remembering the new memory.
+\item A forget gate:
+$$f_t = \sigma\left(W^{(f)}x_t + U^{(f)}h_{t-1}\right)$$
+Intuitively, this tells the model whether to continue remembering the previous memory.
+\item An output gate:
+$$o_t = \sigma\left(W^{(o)}x_t + U^{(o)}h_{t-1}\right)$$
+Intuitively, this tells the model whether to expose the final memory at this time step to the part of the unit actually calculating the ouptut. (Note that, regardless of the value of this gate, the final memory formed at each time step will still be used to compute the final memory formed at the next time step.)
+\item A new memory cell:
+$$\tilde{c}_t = \tanh\left(W^{(c)}x_t + U^{(c)}h_{t-1}\right)$$
+\item A final memory cell:
+$$c_t = f_t \circ c_{t-1} + i_t \circ \tilde{c}_t$$
+\item A hidden state:
+$$h_t = o_t \circ \tanh(c_t)$$
+\end{itemize}
+Both GRUs and LSTMs offer far more power than vanilla RNNs, and LSTMs are state-of-the-art at machine translation (at the time the class was taught).
