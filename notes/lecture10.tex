@@ -1,0 +1,57 @@
+Translation is a huge industry - USD 40B/year. Getting good automated translation can be hugely impactful, even if that impact is less clear to English speakers.
+
+Neural Machine Translation (NMT) models are models that perform machine translation end-to-end with a single large neural network. Typically these models have an encoder that takes input text and transforms it into some encoding $Y$ and a decoder that generates output text from $Y$. 
+
+\begin{itemize}
+\item The encoding part of an NMT model will be a recurrent neural network that reads in one source word at a time and passes them through some recurrent activation unit (tanh, GRU, LSTM, convolutional unit). The last hidden state produced by this RNN will typically be taken as the encoding $Y$. 
+\item The decoder part of the NMT can be thought of as a conditional recurrent language model: it's basically a language model that's conditioned on $Y$ to nudge it towards producing a specific output.
+\end{itemize}
+
+In 2014, NMT was this crazy idea that someone thought up but nobody was realy taking seriously, but by 2016 it was working much better than all the previous methods. There's a number of reasons why it works well:
+\begin{itemize}
+\item End-to-end training that allows the entire model to be optimized at once on a single loss function is really powerful. This is in contrast to having a bunch of separate models for reordering, transliteration, etc.
+\item They make good use od distributed word representations, which are very powerful. Previous methods had largely used one-hot representations, and the sparseness of the data is very limiting to the model.
+\item Neural models use context much more effectively than traditional phrase-based models.
+\item Deep neural nets are just better at generating fluent text, even if the ``translation quality" isn't improved much.
+\end{itemize}
+However, there are still some shortcomings of NMT:
+\begin{itemize}
+\item NMT models don't make good explicity use of syntactic and semantic structures.
+\item NMT is still bad with higher-level properties of text, like discourse structure, anaphora, and clause linking.
+\end{itemize}
+
+\subsection{Attention}
+One issue with decoding an encoding $Y$ into a target language is that you might end up forgetting a bunch of the information in $Y$ as you pass through time steps. A simple way to counter this is to pass $Y$ directly into your hidden unit at each time step. However, there's a larger, higher-level issue here: $Y$ itself might have already forgotten a lot of the information from the earlier parts of the source sentence. In practice this is ok for short sentences, but for longer sentences (>30 words), NMT translations get significantly worse.
+
+Attention is a concept that combats this difficulty. The key idea is to maintain a pool of the hidden units at all time steps during the encoding step, and let the decoder draw from this pool of source states as needed. This means that the decoder needs some way to know which elements from the pool are important, and some way to act on this knowledge. This is usually done at each decoding time step by scoring each source state against the most recent hidden state, creating a context vector by summing the source states weighted by their scores (passed through a softmax to turn them into a probability distribution), and passing this context vector as an input in creating the next hidden state. There are multiple ways to do this scoring between a source state $h_s$ and a target hidden state $h_t$:
+\begin{itemize}
+\item A simple dot product: $h_s^T h_t$
+\item A bilinear form with a trained weight matrix $W_a$: $h_s^TW_ah_t$
+\item A single-layer neural network with trained weights $v_a$ and $W_a$ and activation function $f$: $v_a^Tf\left(W_a[h_s; h_t]\right)$, where $[h_s; h_t]$ denotes concatenation.
+\item More complex neural networks.
+\end{itemize}
+In practice, the bilinear form has been found to work quite well, and one advantage it has over the single-layer neural net is that it allows for direct interaction between $h_t$ and $h_s$, whereas the neural network is just a sum of independent weighted sums of transformations of $h_t$ and $h_s$ by an activation function.
+
+There are also other ideas that have been laid on top of attention as well:
+\begin{itemize}
+\item The idea of coverage is an idea to make sure that we don't neglect any information from the source. In an attention model, you end up with an attention weight $\alpha_{st}$ for each source word $s$ and target word $t$. Scoring and applying a softmax will ensure that $\sum_s \alpha_{st} = 1$ for each $t$, but coverage biases the model towards making sure that $\sum_t \alpha_{st}$ is close to 1 for each $s$ as well. This helps to prevent the attention model from always failing to pay attention to a particular word or piece of information from the source. It does this by adding a term to the loss function equal to
+$$\lambda \sum_{s} \left(1 - \sum_{t} \alpha_{st}\right)^2.$$
+\item The attention model can also be augmented to be aware of position - words in the beginning or end of a source sentence are more likely to matter for the beginning or end of the target sentence, respectively.
+\item Another thing to consider is fertility - if a single source state is getting too much attention, then maybe the resulting translation isn't that accurate.
+\end{itemize}
+
+\subsection{Decoding}
+Once you've produced an encoding $Y$, you need to decode this into an actual sequence of words in the target language. A RNN (or GRU, or LSTM, or what have you) will produce some probability distribution over the set of possible target words at each time step, but ultimately we need to select a single sentence that we think is the best translation. There are multiple ways to do this:
+\begin{itemize}
+\item The most naive way is to enumerate all possible sequences of words up to some length and select the single one with the highest probability, but this is massively exponential and clearly impossible.
+\item A ``statistically correct" way to do this is to randomly sample a word from the probability distribution produced by the neural net at each time step. However, this is pretty high-variance and will get you a different translation on the same sentence each time you run it, so it's not ideal.
+\item An intuitively obvious way is to do a greedy search - at each time step, just pick the word with highest probability. This is simple and efficient, but often gives suboptimal results.
+\item We can improve on greedy search by doing beam search. In beam search, we:
+\begin{itemize}
+\item Keep $K$ hypotheses at each time step.
+\item For each of those $K$ hypotheses, consider the $K$ highest-probability words for the next time step. This yields $K^2$ total possibilities.
+\item Filter those $K^2$ possibilities down to the $K$ hypotheses with the highest probability. These are your $K$ hypotheses for the next time step.
+\item Repeat.
+\end{itemize}
+\end{itemize}
+It turns out that beam search with pretty small $K$ (about 5) works quite well, and that is what's most commonly used today (at the time the lecture was given).
