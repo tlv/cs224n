@@ -1,0 +1,84 @@
+\subsection{Gated RNN review}
+
+In RNNs, you often have the vanishing gradient problem, where the gradient of the loss at time $t+n$ with respect to the parameters at time $t$ are close to 0. When this happens, it's often unclear whether this is because there actually isn't a dependency or because your weights are just causing the gradients to vanish. This is an issue with the naive transition function:
+$$h_{t+1} = \tanh \left(Wx_{t+1} + Uh_t + b\right)$$
+This gives 
+$$\pd{h_{t+1}}{h_t} = U\pd{\tanh a}{a},$$
+where $a = Wx_{t+1} + Uh_t + b$. We see that the loss must backpropagate through every single intermediate node, and this is what causes the vanishing gradient problem.
+
+Gated units allow us to create ``shortcut" connections, which pass information (and gradients) from one time step to another much later one. One such gated unit is the GRU, which has at each time step, in addition to the input $x_t$ and hidden state $h_t$, a reset gate $r_t$, an update gate $u_t$, and a memory $\tilde{h}_t$. GRUs are governed by the equations
+\begin{align*}
+u_t &= \sigma\left(W^{(u)}x_t + U^{(u)}h_{t-1} + b_u\right) \\
+r_t &= \sigma\left(W^{(r)}x_t + U^{(r)}h_{t-1} + b_r\right) \\
+\tilde{h}_t &= \tanh\left(Wx_t + r_t \circ Uh_{t-1} + b\right) \\
+h_t &= u_t \circ \tilde{h}_t + (1 - u_t) \circ h_{t-1}.
+\end{align*}
+These gates allow the GRU to learn adaptive shortcut connections and learn to prune unnecessary connections.
+
+If we roughly think of the naive RNN as a comptational unit with a memory register $h$, it's basically reading the whole register, doing an update $h \leftarrow \tanh\left(Wx_{t+1} + Uh_t + b\right)$, and writing all of that back to $h$. A GRU instead:
+\begin{itemize}
+\item Uses the reset gate $r$ to select a readable subset of registers,
+\item Reads the subset $r \circ h$ and combines it with the input $x$ to produce a new memory $\tilde{h}$,
+\item Uses the update gate $u$ to select a writeable subset of registers, and
+\item Updates the subset of $h$ with $h \leftarrow u \circ \tilde{h} + (1 - u) \circ h$.
+\end{itemize}
+
+A more complex model is the LSTM, which has, in addition to the input $x_t$ and hidden state $h_t$, an input gate $i_t$, an output gate $o_t$, a forget gate $f_t$, an intermediate cell $\tilde{c}_t$, and a final cell $c_t$, governed by the equations
+\begin{align*}
+i_t &= \sigma\left(W^{(i)}x_t + U^{(i)}h_{t-1} + b_i\right) \\
+o_t &= \sigma\left(W^{(o)}x_t + U^{(o)}h_{t-1} + b_o\right) \\
+f_t &= \sigma\left(W^{(f)}x_t + U^{(f)}h_{t-1} + b_f\right) \\
+\tilde{c}_t &= \tanh\left(W^{(c)} x_t + U^{(c)} h_{t-1} + b\right) \\
+c_t &= f_t \circ c_{t-1} + i_t \circ \tilde{c}_t \\
+h_t &= c_t \circ o_t.
+\end{align*}
+This is pretty similar to the GRU, with $c$ in the LSTM acting similarly to $h$ in the GRU.
+
+The addition:
+\begin{align*}
+h_t &= u_t \circ \tilde{h}_t + (1 - u_t) \circ h_{t-1} &\text{(GRU)}\\
+c_t &= f_t \circ c_{t-1} + i_t \circ \tilde{c}_t &\text{(LSTM)}\\
+\end{align*}
+is what allows these gated units to overcome the issues of vanishing gradients, as they give the long backpropagation multiplication chains a friendly ``constant" factor. In practice, this allows GRUs and LSTMs to remember information up to approximately 100 time steps back, while naive RNNs pretty much forget everything after 10 time steps.
+
+Some practical tips for training a gated RNN:
+\begin{itemize}
+\item Use a LSTM or GRU; it will make your life easier.
+\item Initialize the recurrent matrices (the ones that are being multiplied by something from the previous time step, i.e. the various flavors of $U$ in the equations above) to be orthogonal. This seems to prevent issues at the beginning.
+\item Initialize the other matrices with sensibly small values.
+\item Initialize the biases for the reset/forget gates to be around 1 or 2 so that the NNs default to remembering at the beginning of the first batch of training sentences.
+\item Use adaptive learning rate algorithms (e.g. Adam, AdaDelta) instead of vanilla SGD.
+\item Clip gradient norms to prevent exploding gradients.
+\item If using dropout regularization, don't randomly dropout horizontally (from one time step to the next), as this will mean that after a few time steps you would have forgotten most of the information from the past. Random dropout on the vertical connections (from one layer to the next within a time step) is fine.
+\item To improve performance, train an ensemble of around 10 NNs and average their predictions.
+\end{itemize}
+
+\subsection{Machine translation evaluation}
+Evaluating MT is hard: for any given sentence there are often many valid translations into any other language, so it's not obvious how to determine if any one translation is correct or not. One way to do MT evaluation is manually: we can ask bilingual humans whether the translation is correct or incorrect, or to rate the translation on a 5- or 7-point scale for adequacy (correctness) and fluency (whether it actually sounds like a well-formed sentence in the target language). We can also have them do comparative ranking - given two translations of a sentence, select the better one. However, this is slow and expensive.
+
+Another idea people had was to test the translations in some easier-to-evaluate downstream application that uses MT as a component. However, the downstream application often doesn't depend heavily on the quality of the translation, and a much better translation might not perform much better on the downstream application than a very rough one.
+
+The community finally settled on the BLEU (bilingual evaluation understudy) metric, which compares a machine-generated translation to a human-generated reference translation. It does this by computing $n$-gram precision (what percent of MT-produced $n$-grams are also found in the reference translation?) and using that as a metric. A few details prevent the metric from being ``gamed": 
+\begin{itemize}
+\item A brevity penalty penalizes machine translations that are much shorter than the reference translation. This prevents the metric from being gamed by the machine producing very short translations like ``The." which are almost guaranteed to have perfect precision.
+\item If an $n$-gram appears $m_m$ times in the machine translation but $m_r < m_m$ times in the reference translation, only $m_r$ of the instances of that $n$-gram in the machine translation are considered as correct. This prevents the machine from gaming the metric by finding an $n$-gram that's very likely to appear in the reference translation and repeating it many times to subvert the brevity penalty.
+\end{itemize}
+To compute the score:
+\begin{itemize}
+\item We consider $n$-grams up to some given length, commonly $N = 4$.
+\item For each $n$, we compute $p_n$, which is the number of matched MT $n$-grams divided by the total number of $n$-grams produced by the MT.
+\item We also specify a weight $w_n$ for each $n$.
+\item We compute the brevity penalty $BP = \exp \left(\min \left(0, 1 - \ell_r / \ell_m\right)\right)$, where $\ell_r$ is the length of the reference translation and $\ell_m$ is the length of the machine translation.
+\item We compute the final score
+$$BLEU = BP \prod_{n=1}^N p_n^{w_n}.$$
+\end{itemize}
+When BLEU was first introduced, it was shown to correlate very well with human judgments of translation quality. However, when researchers started optimizing heavily for BLEU, this correlation dropped off dramatically. Today, BLEU scores produced by MT systems are comparable to those produced by human translators, but there is still a lot of work to be done in MT.
+
+\subsection{Computational complexity of word generation}
+In the last step of any language model, we need to multiply the hidden layer by a $|V| \times d_h$ matrix and compute a softmax over the result to generate an actual word prediction. This is incredibly computationally intensive, and people have been looking for ways to reduce the complexity. 
+
+One idea is to truncate the vocabulary to only include the most common words, but this actually doesn't work very well, and the model hits unknown words a lot. Other ideas were to use a hierarchical softmax or noise-contrastive estimation, but these techniques aren't very GPU-friendly, as they require a relatively large amount of sequential computation.
+
+A more promising idea is to split up the training set into many smaller individual training sets, and to be selective about the words allowed at test time. Partitioning the training set into subsets with similar vocabularies allowed a group of researchers (On Using Very Large Target Vocabulary for Neural Machine Translation) to reduce the vocabulary in each partition by an order of magnitude (500k to 30k or 50k). At testing time, we restrict the vocabulary to the $K$ most common words overall, unioned with the $K'$ most likely translations of each of the words in the test set. This also reduced $|V|$ by about an order of magnitude by using $K'$ around 10 or 20, and $K$ around 15000.
+
+An issue that this doesn't address is that new words will almost always be encountered at test time anyways (numbers, proper nouns, etc.). Dealing with this is another ongoing area of research.
