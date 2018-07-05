@@ -1,0 +1,89 @@
+Automatic speech recognition (ASR) refers to the task of converting an audio signal to the underlying textual representation. ASR is important because it provides a natural interface for human communication, and because it has a lot of possible applications (talking to cars, Siri, call center chatbots).
+
+Classical approaches to ASR involve building generative models, starting with a statistical language model (usually N-gram models) and then deriving pronunciation models (usually just a mapping from words to pronunciations) and acoustic models (usually Gaussian mixture models) from it. They then take an audio signal and compute audio features from it by transforming the signal into the frequency domain (classical signal processing). Basically, when given an audio signal presenting features X, it just uses the model to predict the sequence of words
+$$\hat{Y} = \text{argmax}_Y p(X | Y) p(Y).$$
+
+As work in speech recognition progressed, all the subcomponents of the model were replaced by neural models:
+\begin{itemize}
+\item N-gram models were replaced with neural language models.
+\item Pronunciation lookup tables were replaced with neural network based pronunciation models. (Traditional pronunciation tables were unable to generalize to new words, e.g. proper nouns.)
+\item Gaussian mixture models were replaced with DNN-HMMs and LSTM-HMMs.
+\item Classical signal processing was replaced with convolutional signals on raw signals.
+\end{itemize}
+
+However, this still leaves us in a state where we have multiple independently trained models, which might not cooperate well with each other to perform the actual end task of speech recognition. This led to end-to-end models being developed, e.g.
+\begin{itemize}
+\item Connectionist Temporal Classification (CTC)
+\item Sequence to sequence (e.g. Listen Attend and Spell)
+\end{itemize}
+
+In an end-to-end model, the goal is to go directly from an audio signal $X = x_1x_2\dots x_t$ (either raw audio or a minimally processed spectrogram) to an output text $Y = y_1y_2\dots y_{\ell}$, where each $y_i$ is a character (or maybe a phoneme; this was not specified in the lecture) in some language. The model should learn a direct probabilistic model $p(Y|X)$.
+
+\subsection{Connectionist Temporal Classification (CTC)}
+
+CTC is one example of an end-to-end model, and it takes spectrogram as its input X. The spectrogram is sliced along the time axis, and the time slices are fed into a bidirectional RNN which outputs a softmax prediction over a vocabulary of characters (phonemes?), including a special blank character, at each time step. At the end, repeated vocabulary tokens are deduplicated to create a final output text. To generate a final prediction, we simply go through the predictions at each time step and find the sequence of predicted tokens that maximizes
+$$\sum_{t=0}^T s(k_t, t),$$
+where $k_t$ is a vocabulary class and $s(k_t, t) = \log p(k_t, t| X).$, subject to the condition that a pair of consecutive tokens must either be identical, or one of them must be the blank symbol.
+
+The first CTC model produced transcripts that sounded correct when read, but had spelling and grammar issues. Adding a language model to rescore outputs at the end reduced word error rate from 30.1\% to 8.7\%. Google's CTC addressed these issues by integrating a language model into the CTC itself during training, and having the final model predict a sequence of words.
+
+\subsection{Listen Attend and Spell (LAS)}
+
+LAS is a different end-to-end model. While CTC makes predictions going forward and looks at one time step of input at a time, LAS has a decoder that repeatedly looks at the entire input, uses attention to determine where the most relevant information is (based on previous predictions), and spits out a token. It is an example of a sequence to sequence (seq2seq) model, which takes a sequence (here, the audio signal) as input, and produces a sequence (the text transcription) as output.
+
+LAS has two parts: an encoder and a decoder. The encoder produces a hidden state $h_t$ at each frame of the input, and the decoder produces a state $s$ at each time step. The attention part of the model works by concatenating $s$ to $h_t$ for each $t$, passing $h_ts$ through a neural network $f$ to produce a score $e_t$, taking the softmax of all the values $e_t$ to produce attention coefficients $a_t$, and creating a context vector $c = \sum a_t h_t$. The model then uses this context vector $c$ to make its prediction about the next token. One notable aspect of this model is that it doesn't include a blank token in its voacbulary: since it looks at the whole input sequence at each step, it shouldn't ever need to predict a blank token.
+
+The encoder is actually structured as a hierarchical encoder. This is because the number of audio frames in a typical input was too many (often something like 100 frames per second), and the attention model was not able to learn anything useful. The hierarchical encoder combines adjacent frames at each layer of the hierarchy, so that the final encoding does not have so many time slices.
+
+The LAS model has a few limitations:
+\begin{itemize}
+\item The model isn't online - it cannot start producing output until it has received the entire input.
+\item The attention model is also a large computational bottleneck: each output token must compute attention with respect to each input frame.
+\item The word error rate increases significantly as input length increases.
+\end{itemize}
+
+\subsection{Online Sequence to Sequence Models}
+
+Online seq2seq models attempt to address the first two of the above limitations by producing outputs as inputs arrive. Such a model must figure out when it has enough information to be confident about outputting symbols. 
+
+One such model is a neural transducer, which is conceptually very similar to a normal seq2seq model: it simply splits the input up into blocks, and runs a seq2seq model on each block. Each block also produces some state that is fed into the next block, which allows the model to maintain causality: the output at one frame can still influence the output at future frames. However, as there might be nothing at the end of a block that is in the middle of an input, we need some sort of blank token again - we introduce it in this model as the end-of-block symbol.
+
+The blocks, however, introduce some alignment problems. First, when the model is trying to predict the probability of a prediction $\hat{y}_1\hat{y}_2\dots\hat{y}_s$ from an input $X$, there are $\binom{s + b - 1}{b - 1}$ ways it can arrive at that prediction, where $b$ is the number of blocks, since the concatenation of the transducer outputs will also include $b-1$ end-of-block tokens. (Actually $b$ end-of-block tokens, but the location of the last one is fixed.) This means that the probability of a final prediction $p(\hat{Y} = \hat{y}_1\hat{y}_2\dots\hat{y}_s | X)$ is actually a sum over a combinatorial number of terms:
+$$p(\hat{Y} = \hat{y}_1\hat{y}_2\dots\hat{y}_s | X) = \sum_{\tilde{y}_1\tilde{y}_2\dots\tilde{y}_{s + b - 1} \in \hat{y}_1\hat{y}_2\dots\hat{y}_s} p(\tilde{y}_1\tilde{y}_2\dots\tilde{y}_{s + b - 1} | X).$$
+Obviously this sum is impractical to compute, since each block depends on the previous blocks, so there actually isn't any way to ``shortcut" this computation, i.e. you'd actually have to compute each one of the probabilities. In practice, we just try to find the complete sequence of $s + b - 1$ tokens $\tilde{y}_1\tilde{y}_2\dots\tilde{y}_{s+b-1}$ with the highest probability using beam search, and take the corresponding $\hat{y}_1\hat{y}_2\dots\hat{y}_s$ as our prediction.
+
+Similarly, during training, the gradient of the log likelihood (of the correct output) generated by an example will be the sum of $\binom{s+b-1}{b-1}$ terms:
+$$\pd{J}{\theta} = \sum_{\tilde{y}_1\tilde{y}_2\dots\tilde{y}_{s + b - 1} \in \hat{y}_1\hat{y}_2\dots\hat{y}_s} p(\tilde{y}_1\tilde{y}_2\dots\tilde{y}_{s + b - 1} | X) \pd{}{\theta} \log p(\tilde{y}_1\tilde{y}_2\dots\tilde{y}_{s + b - 1} | X).$$
+We approach this the same way: we simplify this to
+$$\pd{}{\theta}\log p(\tilde{y}_1\tilde{y}_2\dots\tilde{y}_{s + b - 1} | X)$$
+for the highest-probability complete sequence $\tilde{y}_1\tilde{y}_2\dots\tilde{y}_{s+b-1}$. However, beam search doesn't work well in practice in this case, so we use a pseudo-DP approach where for each block $b$ (startin from the first path), we find the best paths that end $b$ at token $j$ for some set of possible $j$. We then use these pseudo-optima at block $b$ to calculate the optima at the next block. Note however that this isn't true DP, since the best alignment of the first $b+1$ blocks might not start with the best alignment of the first b blocks, but it works well enough in practice.
+
+\subsection{Sequence to Sequence Improvements and Shortcomings}
+
+In recent times, there have been a number of improvements made to seq2seq models, summarized below:
+\begin{itemize}
+\item In the original LAS, the hierarchical encoder just did some pretty simple linear transformations (the exact transformations were not mentioned in the lecture) to reduce the resolution of the audio input. One improvement on this is by replacing that simple transformation with a CNN, which reduced word error rate substantially.
+\item Originally, output sequences were represented by output vocabularies of words, characters, or some combination thereof. However, none of these structures provide very good correspondence to the actual sound of English speech, so later work improved upon this by introducing an N-gram vocabulary. However, there are many ways to represent a word as a sequence of N-grams, so it was not obvious how to actually represent each word.
+\begin{itemize}
+\item One possibility is to greedily choose the longest possible N-gram from the vocabulary at each step starting from the beginning of the word.
+\item Another one is to choose the most common N-grams, i.e. select for the greatest compression factor.
+\item The approach that the authors (in the paper mentioned in lecture) used was just to calculate the predicted probabilities of all possible representations and calculate a gradient with respect to all of them during training (using a probabilistic estimate from the calculated probabilities). This performed better than the other two approaches.
+\end{itemize}
+\item Seq2seq models often have trouble predicting the correct token at the beginnings of words. It makes sense that there's less ambiguity later on in the word (there's only a few possible words once the first few characters are given).
+\begin{itemize}
+\item This is especially problematic when the model is overconfident about an incorrect prefix, since the wrong word prefix will force a lot of other errors, which will lead to issues in the integrated language model.
+\item Entropy regularization, which penalizes the model for making too-confident softmax predictions, has shown to address the overconfidence problem pretty effectively.
+\end{itemize}
+\item Seq2seq models sometimes will ignore much of the input. Each output token produced by the model incurs some additive cost (i.e. in the objective function), so if the input is very long, the model may get into a state where ignoring the rest of the input will be less costly than even making a perfect prediction. This is because there's nothing encoded in the model that says it must ``explain" the entire input.
+\begin{itemize}
+\item This can be addressed by adding a coverage reward which adds a reward for each frame of the input whose total attention across all output token predictions is greater than some threshold.
+\end{itemize}
+\item There's much more textual language data than audio data, so better integration of language models has a lot of potential to improve speech recognition performance. There's simply not enough audio data to create a good language model without introducing something that was trained on textual data; without a language model to help it, a speech recognition model is bound to make errors.
+\item A lot of speech recognition models predict one time step at a time. However, they don't consider the long-term impact of that prediction; for example, an incorrect word prefix can have heavy consequences on the predictions for the rest of the sentence. There's some work going on to better optimize these models with longer sequences in mind.
+\end{itemize}
+
+There's also exciting directions for future work. A couple of examples:
+\begin{itemize}
+\item Multispeaker/multichannel speech recognition. Most work today has been focused on the case of one speaker and one microphone, but settings with multiple speakers and multiple microphones haven't gotten much attention lately.
+\item Direct translation of speech in a source language to text in a different target language.
+\end{itemize}
