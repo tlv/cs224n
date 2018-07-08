@@ -3,8 +3,8 @@
 \usepackage{amssymb}
 \usepackage{fullpage}
 \usepackage[parfill]{parskip}
-\usepackage{pythonhighlight}
-\usepackage{tikz}
+\usepackage{graphicx}
+\usepackage{subfig}
 \newcommand{\pd}[2]{\frac{\partial #1}{\partial #2}}
 \title{Assignment 3 writeup}
 \author{Thomas Lu}
@@ -121,4 +121,77 @@ Both of these issues can be addressed by allowing the model to see farther into 
 \end{itemize}
 \end{itemize}
 
+\section{Problem 3}
+(a)
+\begin{itemize}
+\item (i) We have $h^{(t)} = \sigma(x^{(t)}w_h + h^{(t-1)}u_h + b_h)$. The values $w_h = 1, u_h = 1, b_h = -0.5$ will satisfy the requirements of the problem: if either $x^{(t)}$ or $h^{(t-1)}$ is 1, then $h^{(t)}$ will be 1, and if both are 0, then $h^{(t)}$ will be 0.
+\item (ii) $w_r = u_r = b_r = 0$ yields $r^{(t)} = \sigma(x^{(t)}w_r + h^{(t-1)}u_r + b_r) = \sigma(0) = 0$, so we have the following equations (recall $b_z = b_h = 0$):
+\begin{align*}
+z^{(t)} &= \sigma(x^{(t)}w_z + h^{(t-1)}u_z) \\
+\tilde{h}^{(t)} &= \sigma(x^{(t)}w_h) \\
+h^{(t)} &= z^{(t)} h^{(t-1)} + (1 - z^{(t)}) \tilde{h}^{(t)}. \\
+\end{align*}
+It is not difficult to verify that setting $w_z = 0, u_z = 1, w_h = 1$ gives the desired behavior. The value of $u_h$ is inconsequential, as it is zeroed out by $r^{(t)}$ always evaluating to 0. (Actually, $u_z$ and $w_h$ can be any positive value.)
+\end{itemize}
+
+(b)
+\begin{itemize}
+\item (i) 
+
+We have $h^{(t)} = \sigma(w_xx^{(t)} + w_hh^{(t-1)} + b_h)$. We need $h^{(t)} = 0$ when $x^{(t)}$ and $h^{(t-1)}$ are both 0 or both 1, and $h^{(t)} = 1$ when one of $x^{(t)}$ and $h^{(t-1)}$ 0 and the other is 1. $h^{(t)} = 0$ is equivalent to $w_xx^{(t)} + w_hh^{(t-1)} + b_h \le 0$, so the previous four conditions become:
+\begin{align*}
+b_h &\le 0 \\
+w_x + w_h + b_h &\le 0 \\
+w_h + b_h &> 0 \\
+w_x + b_h &> 0\\
+\end{align*}
+From the first, third, and fourth conditions, $b_h$ must be nonpositive $w_h$ and $w_x$ must be positive. However, this makes it impossible to simultaneously satisfy the second and third conditions, so the 1D RNN cannot model toggling behavior.
+
+\item (ii)
+
+With our simplifications, the GRU conditions become:
+\begin{align*}
+z^{(t)} &= \sigma(w^{(t)}w_x + h^{(t-1)}u_z) \\
+r^{(t)} &= \sigma(b_r) \\
+\tilde{h}^{(t)} &= \tanh(x^{(t)}w_h + r^{(t)}h^{(t-1)}u_h) \\
+h^{(t)} &= z^{(t)}h^{(t-1)} + (1 - z^{(t)})\tilde{h}^{(t)}
+\end{align*}
+We now need to satisfy four conditions:
+\begin{itemize}
+\item When $x^{(t)} = h^{(t-1)} = 0$ we need $h^{(t)} = 0$. The precondition yields the simplifications $z^{(t)} = 0$ and $\tilde{h}^{(t)} = 0$, so for this condition, the values of $w_z, u_z, w_h, u_h, b_r$ are inconsequential.
+\item When $x^{(t)} = 1, h^{(t-1)} = 0$ we need $h^{(t)} = 1$. The precondition yields the simplifications $z^{(t)} = \sigma(w_z)$, $\tilde{h}^{(t)} = \tanh(w_h)$, $h^{(t)} = (1 - z^{(t)})\tilde{h}^{(t)}.$ We see that we need $z^{(t)} = 0$ and $\tilde{h}^{(t)} = 1$, so we must have $w_h > 0$, $w_z \le 0$.
+\item When $x^{(t)} = h^{(t-1)} = 1$ we need $h^{(t)} = 0$. The precondition yields the simplifications $z^{(t)} = \sigma(w_z + u_z)$, $\tilde{h}^{(t)} = \tanh(w_h + r^{(t)}u_h)$, and $h^{(t)} = z^{(t)} + (1 - z^{(t)})\tilde{h}^{(t)}$. We see that we must have $z^{(t)} = 0$, implying $u_z + w_z \le 0 \Rightarrow u_z \le -w_z$ and $\tilde{h}^{(t)}$ = 0, which in turn implies $w_h + r^{(t)}u_h = w_h + \sigma(b_r)u_h \le 0 \Rightarrow b_r > 0, u_h \le -w_h$.
+\item When $x^{(t)} = 0, h^{(t-1)} = 1$ we need $h^{(t)} = 1$. The precondition (taken with $b_r > 0$, $u_h \le -w_h < 0$) yields the simplifications $z^{(t)} = \sigma(u_z)$, $\tilde{h}^{(t)} = \tanh(u_h) = 0$, and $h^{(t)} = z^{(t)}$. This yields $u_z > 0$.
+\end{itemize}
+Our final set of conditions on $w_z, u_z, w_h, u_h, b_r$ are thus:
+\begin{align*}
+b_r &> 0 \\
+w_h &> 0 \\
+w_z &\le 0 \\
+0 &< u_z \le -w_z \\
+u_h &\le -w_h
+\end{align*}
+It can be mechanically verified that any values $b_r, w_h, w_z, u_z, u_h$ satisfying these conditions will allow the GRU to model toggling behavior.
+\end{itemize}
+
+(d)
+
+\begin{figure}
+\centering
+\subfloat[]{\includegraphics[width=80mm]{assignment3/q3-clip-rnn.png}}
+\subfloat[]{\includegraphics[width=80mm]{assignment3/q3-clip-gru.png}}
+
+\subfloat[]{\includegraphics[width=80mm]{assignment3/q3-noclip-rnn.png}}
+\subfloat[]{\includegraphics[width=80mm]{assignment3/q3-noclip-gru.png}}
+\caption{Gradients and losses from the RNN/GRU experiments with and without gradient clipping.} \label{fig1}
+\end{figure}
+
+The results of the experiment are shown in Figure \ref{fig1}.
+
+(e)
+
+\begin{itemize}
+\item (i) It seems like all models experienced vanishing gradients. The non-clipped GRU model had a few somewhat large gradients (maximum norm around 15), but nothing that would warrant a description of ``exploding." Since there were no exploding gradients, gradient clipping was not very helpful.
+\item (ii) Clipped models and unclipped models performed similarly. The GRUs performed better than the RNNs, probably because they were better able to maintain memory throughout the sequence - you can see that the RNNs quickly entered a state where all the gradients vanished, while the GRUs kept significant gradients through many more training examples.
+\end{itemize}
 \end{document}
