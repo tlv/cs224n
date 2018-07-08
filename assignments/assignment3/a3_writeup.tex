@@ -69,4 +69,56 @@ y': O      O LOC  MISC MISC O             O       O
 \end{verbatim}
 \end{itemize}
 \end{itemize}
+
+\section{Problem 2}
+(a)
+
+\begin{itemize}
+\item (i) $b_1, b_2, U$ do not change, $W_e$ has $DH$ parameters instead of $(2w + 1)DH$, we have a new parameter $W_h$ with $H^2$ parameters. Thus the RNN has $H^2 - 2wDH$ more parameters.
+\item (ii) At each time step $t$, the model must perform three matrix multiplications:
+\begin{itemize}
+\item $h^{(t-1)}W_h$, which is a $1 \times H$ vector multiplied by a $H \times H$ matrix, for complexity $O(H^2)$
+\item $e^{(t)}W_e$, which is a $1 \times D$ vector multiplied by a $D \times H$ matrix, for complexity $O(DH)$
+\item $h^{(t)}U$, which is a $1 \times H$ vector multiplied by a $H \times C$ matrix, for complexity $O(HC)$
+\end{itemize}
+Thus the total complexity is $O(T(H^2 + DH + HC) = O(TH(H + D + C))$.
+\end{itemize}
+
+(b)
+
+\begin{itemize}
+\item (i) Suppose the distribution is very skewed, with 99.9\% of samples being negative and only 0.1\% being positive. Suppose we were simply provided a constant hypothesis $p$; $p=0.001$ (leading to a negative 0 for every sample) would minimize the cross-entropy, but would lead to a F1 score of 0, while $p=0.5$ (and resolving this to a positive or negative prediction with equal probabiliity) would lead to a higher cross-entropy but a F1 score of 0.5.
+\item (ii) The F1 score is not differentiable; it shows a step change when any single prediction crosses the 0.5 threshold.
+\end{itemize}
+
+(d)
+
+If we didn't use masking, our output would continue producing outputs $\hat{y}^{(t)} = \text{softmax}(\sigma(W_h h_{t-1} + W_e x_0 + b))$ for $T < t \le M$ for each sentence in a batch with length $T < M$, where $M$ is the maximum length across sentences in the batch and $x_0$ is the embedding of the null token. We would require our model to learn that when the null token is passed in, it should return the null output, regardless of state. Masking allows our model to ignore this restriction.
+
+(g)
+
+\begin{itemize}
+\item (i)
+\begin{itemize}
+\item The RNN model has limited ability to look into the future, since it only uses a window size of 1. Thus (similarly to the window-based model) it can get tripped up on entities who have prefixes that are a different type of entity, such as ``Hong Kong Open" in the below example:
+\begin{verbatim}
+x : SQUASH - HONG KONG OPEN QUARTER-FINAL RESULTS .
+y*: O      O MISC MISC MISC O             O       O
+y': O      O LOC  MISC MISC O             O       O
+\end{verbatim}
+\item The model also has trouble with named entities that come at the beginning of sentences. Oftentimes locations and organizations are named after people, so there isn't really any helpful information in the words themselves, and the model has no other information to work on. Example:
+\begin{verbatim}
+x : Apic Yamada - 6mth parent forecast .
+y*: ORG  ORG    O O    O      O        O
+y': PER  PER    O O    O      O        O
+\end{verbatim}
+\end{itemize}
+\item (ii)
+Both of these issues can be addressed by allowing the model to see farther into the future. There are a number of ways this can be done. Two examples are:
+\begin{itemize}
+\item Increase the window size.
+\item Make the RNN a bidirectional RNN.
+\end{itemize}
+\end{itemize}
+
 \end{document}
