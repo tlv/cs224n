@@ -1,0 +1,64 @@
+Although RNNs and their various augmentations have been very powerful solutions to many NLP problems, they have some weaknesses:
+\begin{itemize}
+\item Because an RNN evaluates on a sequence of words, it can't capture the isolated meaning of a subphrase within a larger phrase. For example, in the larger phrase ``the country of \textbf{my birth}", it can't capture the meaning of ``my birth" in isolation.
+\item Since we often only apply softmax to the last output of an RNN, we can end up overweighting the last few words in a sentence. We can mitigate this by making the RNN bidirectional and/or by adding layers, but we still end up with a problem where we overweight stuff on either end. (Vanishing gradients is a tough problem!)
+\end{itemize}
+
+\subsection{Intro to Convolution}
+
+Convolutional neural networks, or CNNs, can mitigate some of these issues. The main intuition behind CNNs is that they compute vectors for every phrase (specifically, every $n$-gram, for chosen values of $n$) in a sequence of words. They compute these vectors without regard for grammaticality or linguistic/cognitive plausibility. The main mathematical idea behind CNNs is, predictably, convolution, which can be defined as (using $*$ to denote convolution)
+$$(f * g)[n] = \sum_{m=-M}^M f[n-m]g[m],$$
+where $f$ and $g$ are sequences and $M$ is a predefined window size. CNNs are very powerful for image processing; the convolution operation can be made two-dimensional as well:
+$$(f * g)[n_1, n_2] = \sum_{m_1=-M_1}^{M_1} \sum_{m_2 = -M_2}^{M_2} f[n_1 - m_1, n_2 - m_2]g[m_1, m_2],$$
+They're less popular for NLP but have shown a lot of promise for certain applications, such as sentiment analysis; oftentimes in sentiment analysis it is useful to check for the presence of certain types of phrases, which CNNs are very good at.
+
+\subsection{Single-layer CNN, (Kim 2014)}
+The actual paper (very short!) can be found at \begin{tt}https://arxiv.org/pdf/1408.5882.pdf\end{tt}.
+
+In this model, we represent words as vectors $x_i \in \mathbb{R}^k$ and sentences as the concatenation of word vectors:
+$$x_1 \oplus x_2 \oplus \cdots \oplus x_n.$$
+We also notate a sequence of words as $x_{i:i+j} = x_i \oplus x_{i+1} \oplus \cdots \oplus x_{i+j}$. The key idea here is to have a convolutional filter $w \in \mathbb{R}^{hk}$, where $h$ is some chosen window size, and convolve it with each $h$-word window in our sentence to produce a feature vector $c = [c_1, c_2, \dots, c_{n-h+1}]^T$, where
+$$c_i = f(w^Tx_{i:i+h-1} + b),$$
+where $f$ is some nonlinear activation function and $b$ is a bias term. (We can also zero-pad our sentence at both ends, in which case $c$ would have dimensionality $n+h-1$ rather than $n-h+1$. 
+
+Given this variable-length vector $c$, we can then perform pooling on it, i.e. reduce it down to a single number. For example, we can perform max-pooling to produce a single scalar feature $\hat{c} = \max_i c_i$. The intuition behind max-pooling is that the filter $w$ might be really good at recognizing a particular type of phrase, and max-pooling allows us to check if that type of phrase is present at any position in the sentence. This only gives us a single feature, but for more features, we can simply define more filters $w$.
+
+In the final model, we will have a vector of $m$ max-pooled features $z = [\hat{c_1}, \hat{c_2}, \dots, \hat{c_m}]^T$. To make a prediction, we simply apply a softmax to this vector:
+$$y = \text{softmax}\left(W^{(S)}z + b^{(S)}\right).$$
+
+Because max-pooling will zero out the gradient for all but one element in each convolved sequence $c$, initialization is pretty important, as there will be many flat areas for our network to get stuck on during gradient descent.
+
+\subsubsection{Practical implementation tricks/optimization enhancements}
+The Kim paper used a number of hyperparameters and optimization tricks, detailed below:
+\begin{itemize}
+\item Multiple channels. The Kim paper experimented with using two channels, and the concept here was to select some set of pre-trained word vectors, and start training with two copies of those vectors. During training, we can apply gradient descent to finetune one set of word vectors and keep the other set constant. Then we can compute each convolved output $c$ with both sets of word vectors and combine corresponding values of $c$ before max-pooling. This produced slightly better results in some cases.
+\item Dropout. We can apply dropout on the final layer, i.e. compute (during training)
+$$y = \text{softmax}\left(W^{(S)}(r \circ z) + b^{(S)}\right),$$
+where $r$ is a vector with each element independently equal to $1$ with probability $p$ and $0$ with probability $1-p$. We then remove $r$ during test time, but we then need to rescale $W^{(S)}$ as it was trained on dropped-out feature vectors $r \circ z$, which have smaller norm than the original vectors $z$, so we replace $W^{(S)}$ with $pW^{(S)}$. The Kim paper used $p = 0.5$.
+\item Constraining L2 norms. This is pretty uncommon, but the author limited the L2 norms of each class (row) of the softmax params $W^{(S)}$:
+\begin{equation*}
+W_i^{(S)} = 
+\begin{cases}
+\frac{s}{\left\|W_i^{(S)}\right\|}W_i^{(S)}, &\text{if} \left\|W_i^{(S)}\right\| > s,\\
+W_i^{(S)}, &\text{otherwise.} 
+\end{cases}
+\end{equation*}
+Kim used $s = 3$.
+\item Other hyperparameters:
+\begin{itemize}
+\item ReLU activation
+\item Convolutaional filter window sizes 3, 4, 5
+\item 100 filters for each window size
+\item SGD minibatch size of 50
+\item Used pretrained word2vec vectors of dimension 500
+\end{itemize}
+\end{itemize}
+
+\subsection{Other options and applications of CNNs}
+There are other ways we can architect a CNN as well, besides the options that Kim chose. For example:
+\begin{itemize}
+\item We can decide whether to do wide or narrow convolutions (basically, do we convolve over windows that ``go past" the input boundaries, or just ignore them).
+\item We can use other pooling schemes (e.g. min-pooling, mean-pooling)
+\item We can also add more convolutional layers.
+\end{itemize}
+An interesting recent (as of early 2017) application used CNNs to perform the encoding step in a machine translation model (and used an RNN to decode).
