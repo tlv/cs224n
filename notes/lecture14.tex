@@ -1,0 +1,79 @@
+Models in NLP range from simple bag-of-words models (which actually still perform quite well in the form of deep averaging networks) to very complex linguistic structures. Between those two extremes, there's a lot of room for work. Something in the middle will have more than just word vectors, and will possibly have something to capture basic semantic interpretation.
+
+\subsection{Semantic interpretation}
+It's believed that humans generally interpret the meaning of larger text units (e.g. sentences) by ``semantic composition" of smaller units (e.g. words) for which meanings are known. (And similarly for images, where images have multiple objects, which have multiple components, etc.) A reasonable conclusion is that to have language understanding (and AI in general), we need to be able to understand bigger things using knowledge about smaller parts.
+
+Some linguists also believe that language is fundamentally recursive, and that the reason humans are able to use language is because our brains are capable of dealing with recursion. This stands up to reason; language can be described recursively (e.g. ``[The man from [the company that you spoke with about [the project] yesterday]]" can be described as nested noun phrases as indicated), and we can (and linguists often do) model sentences as trees of types of phrases, each of which can be made up of sequences of other types of phrases (as in a context-free grammar). Some other arguments for why it's helpful to describe languages recursively:
+\begin{itemize}
+\item We can use recursive tree structures to disambiguate sentence structure and word/phrase attachments. For example, ``I eat spaghetti with a fork" and ``I eat spaghetti with meat" have two very different meanings of the word ``with," and this can be captured by representing the sentence structure differently. (In the first sentence, ``with a fork" is a prepositional phrase that modifies the verb phrase centered on ``eat", while in the second sentence, ``with meat" is a prepositional phrase that modifies the noun phrase centered on ``spaghetti.")
+\item It's helpful in some tasks for referring to other phrases in a sentence/text unit. For example, in the pair of sentences ``John and Jane went to a big festival. \textbf{They} enjoyed \textbf{the trip} and the music \textbf{there}.", 
+\begin{itemize}
+\item ``They" refers to ``John and Jane",
+\item ``the trip" refers to ``went to a big festival", and
+\item ``there" refers to ``a big festival".
+\end{itemize}
+\item In some tasks, it's helpful to understand the grammatical tree structure; it captures a powerful prior for language structure.
+\end{itemize}
+
+\subsection{Tree Recursive Neural Networks}
+Previously we've covered how to represent word meanings as vectors. We can do something similar with phrases by embedding them in the same vector space, using a composition function to compose word vectors into phrase vectors. The vector representation of a phrase should depend on two things: the words in it, and the structure by which they are combined. Models that learn these vector representations can then simultaneously learn the parse trees and the semantic meanings (i.e. vector embeddings) of phrases.
+
+The main idea behind such a model is to start with a sequence of words and their embeddings, and then recursively build phrase structure from there. Such models are often called recursive neural networks and abbreviated as RNNs, although I'll refer to them as tree RNNs to disambiguate from recurrent neural networks.
+
+RNNs and tree RNNs each have their own shortcomings:
+\begin{itemize}
+\item Tree RNNs need to have a parser to get the tree structure of a sentence. This increases their complexity significantly, and requires you to make categorical choices about the tree structure, which gives you issues during backpropagation.
+\item RNNs can't capture phrase meanings without prefix context, and often capture too much stuff at the end of a phrase.
+\end{itemize}
+We can also observe the differences between RNNs and CNNs:
+\begin{itemize}
+\item RNNs only produce vectors for grammatical phrases that are provided to it as input. (Although in principle you could also feed nongrammatical phrases into an RNN.)
+\item CNNs produce vectors for every $n$-gram in its input for specified $n$, without regard to grammaticality or linguistic/cognitive plausibility.
+\end{itemize}
+This highlights some of the differences between CNNs and tree RNNs:
+\begin{itemize}
+\item CNNs don't need a parser to determine sentence structure - they just try to represent everything without regard for grammar.
+\item Tree RNNs, on the other hand, only calculate representations for grammatical phrases.
+\end{itemize}
+
+\subsubsection{A simple tree RNN}
+The main thing that a tree RNN needs to do is compose child linguistic structures into parent ones. Specifically, it needs a function that takes two candidate childrens' representations and produces a representation of their composition, as well as a plausibility score for that composition. A simple version just has two weight matrices $U$ and $W$, and given two child embeddings $c_1$ and $c_2$, it produces a parent embedding
+$$p = \tanh\left(W\left[c_1 \oplus c_2\right]^T\right),$$
+where $\oplus$ indicates concatenation, and a plausibility score $s = U^Tp$.
+
+Using this simple model, we can parse a sentence by greedily trying to compose all pairs of adjacent nodes and selecting the one with the highest plausibility, and repeating until we're down to a single node. We can then score a parse $y$ of a sentence $x$ by summing the plausibility scores at each composition node of the parse tree.
+
+We can train a model to do this by using the loss function
+$$J = \sum_i\left( s(x_i, y_i) - \max_{y \in A(x_i)}\left(s(x_i, y) + \Delta(y, y_i)\right)\right),$$
+where:
+\begin{itemize}
+\item $s(x, y)$ is the score of a parse $y$ for a sentence $x$,
+\item Each $x_i, y_i$ is a training example that represents a sentence and its correct parse,
+\item $A(x_i)$ is the set of all possible parses of a sentence $x_i$,
+\item $\Delta(y, y_i)$ is a penalty term for parsing a sentence incorrectly.
+\end{itemize}
+In practice it requires an exponential amount of computation to find the actual maximum in the second part of that loss function, so we use greedy search or beam search instead. We can then optimize the loss function through backpropagation, the details of which I won't cover (the lecture didn't really cover them, and I'm too lazy to work through it independently).
+
+This simple model can get decent results, but it's a little too simplistic for more complex, higher order compositions and for parsing long sentences.
+\begin{itemize}
+\item It doesn't really capture any interactions between words: when computing $W\left[c_1 c_2\right]^T$, we might as well be computing $W_1c_1^T$ and $W_2c_2^T$ separately, where $W_1$ and $W_2$ are the top and bottom halves of $W$.
+\item We're using the same matrix for all types of compositions (adjective with noun phrase, verb with preposition phrase, etc.). We can probably do better by using different matrices.
+\end{itemize}
+
+\subsubsection{Syntactically-untied tree RNNs}
+This is basically the same model as the previous, except we use a symbolic context-free grammar for basic syntactic structure. What this means is that each time we do a composition, we know how the two children can combine into a parent (for example, it could be a preposition and a noun phrase combining to make a prepositional phrase). We can then use the type of composition to choose a composition matrix, and using different composition matrices for different syntactic environments can allow the model to perform better.
+
+However, a drawback of this model is speed - each candidate score in beam search needs a matrix-vector product to compute, which is expensive. A solution is to use a simpler model (probabilistic context-free grammar) to prune unlikely candidates, and only beam search using those candidates. The final model is called the compositional vector grammar, or CVG.
+
+\subsubsection{Matrix-vector tree RNNs}
+This further builds on the model to allow interactions between words. One idea is to represent some words as matrices and some words as vectors, which allows for a matrix-vector multiplication to capture interactions. However, this is difficult to generalize: which words do we represent as matrices, and which as vectors?
+
+The answer is to represent every word as both a matrix and a vector. We can then compose two children $(c_1, C_1)$ and $(c_2, C_2)$ (where the $c$s are the vector representations and the $C$s are the matrix repesentations) by:
+\begin{align*}
+p &= \tanh\left(W \left[C_2c_1 C_1c_2\right]^T + b\right)\\
+P &= W_M\left[C_1C_2\right]^T.
+\end{align*}
+This model, the matrix-vector tree RNN, or MV-RNN, is better than the plain tree RNN at capturing non-additive semantic information in phrases. For example, in an experiment, when trying to assign a semantic score to the phrase ``not awesome", a tree RNN predicted a fairly positive semantic score, while an MV-RNN predicted a much more neutral sentiment.
+
+Another application that this model performed well in was sematic relationship classification. In this task, we are given an input sentence and two nouns within the sentence, and we must classify the relationship between those nouns (choosing one from a given list). For example, given the sentence and nouns ``My $[\text{apartment}]_1$ has a large $[\text{kitchen}]_2$, we need to classify the relationship as 2 (kitchen) relating to 1 (apartment) in a \emph{component-whole} relationship.
+
