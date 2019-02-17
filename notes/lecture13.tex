@@ -13,7 +13,7 @@ $$(f * g)[n_1, n_2] = \sum_{m_1=-M_1}^{M_1} \sum_{m_2 = -M_2}^{M_2} f[n_1 - m_1,
 They're less popular for NLP but have shown a lot of promise for certain applications, such as sentiment analysis; oftentimes in sentiment analysis it is useful to check for the presence of certain types of phrases, which CNNs are very good at.
 
 \subsection{Single-layer CNN, (Kim 2014)}
-The actual paper (very short!) can be found at \begin{tt}https://arxiv.org/pdf/1408.5882.pdf\end{tt}.
+The actual paper (very short!) can be found at \begin{tt}https://arxiv.org/pdf/1408.5882.pdf\end{tt}. In this paper, the author presents a CNN model that performs well on various sentence classification tasks.
 
 In this model, we represent words as vectors $x_i \in \mathbb{R}^k$ and sentences as the concatenation of word vectors:
 $$x_1 \oplus x_2 \oplus \cdots \oplus x_n.$$
@@ -47,7 +47,7 @@ Kim used $s = 3$.
 \item Other hyperparameters:
 \begin{itemize}
 \item ReLU activation
-\item Convolutaional filter window sizes 3, 4, 5
+\item Convolutional filter window sizes 3, 4, 5
 \item 100 filters for each window size
 \item SGD minibatch size of 50
 \item Used pretrained word2vec vectors of dimension 500

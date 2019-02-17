@@ -17,7 +17,7 @@ When evaluating the plausibility of a dependence from one word to another in a s
 \item Valency of heads (certain words are likely to have certain numbers of dependents on the left and/or right side; e.g. determinants are unlikely to have any dependents; nouns might have many dependents but determiners and adjectives typically are on the left, while prepositional phrases are likely to be on the right).
 \end{itemize}
 
-To parse a sentence, we must decide for each word which other word it depends on. Usually we constrain the total space of possibilities by enforcing that only one word depends on ROOT, and that dependencies cannot form cycles, which guarantees that our dependency graph will be a tree. We also say that a dependency graph is projective if, when we draw it with the words in order and all edges as ``straight" arcs (i.e. never change their left-right direction) going over the row of words, we can draw it in such a way that the arcs don't cross.
+To parse a sentence, we must decide for each word which other word it depends on. Usually we constrain the total space of possibilities by enforcing that only one word depends on ROOT, and that dependencies cannot form cycles, which guarantees that our dependency graph will be a tree. We also say that a dependency graph is projective if, when we draw it with the words in order and all edges as ``straight" arcs (i.e. never change their left-right direction) going over the row of words, we can draw it in such a way that the arcs don't cross. (More formally, if $w_1$ depends on $w_2$ and $w_3$ depends on $w_4$, then $w_3$ and $w_4$ must both be between $w_1$ and $w_2$, or $w_1$ and $w_2$ must both be between $w_3$ and $w_4$.)
 
 There are various methods for doing dependency parsing:
 \begin{itemize}
@@ -31,7 +31,7 @@ The arc-standard transition-based parser is one form of transition-based parsing
 \begin{enumerate}
 \item Shift. This pops the leftmost word from $\beta$ and pushes it onto $\sigma$.
 \item Left Arc. This sets the second-from-the-top element of the stack as dependent on the top element of the stack and removes the second-from-the-top element.
-\item Right Arc. The same as left arc, but the top element is the dependent instead of the head.
+\item Right Arc. The same as left arc, but the top element is the dependent instead of the head, and then the top element is removed.
 \end{enumerate}
 As an example, we perform this algorithm on the simple sentence ``I ate fish." In this example, the right side of the stack is the top.
 \begin{enumerate}

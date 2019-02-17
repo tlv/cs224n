@@ -1,9 +1,9 @@
 \subsection{word2vec revisited}
-Recall that the skip-gram (word2vec) model is typically trained using stochastic gradient descent. Because the parametrization of the model is very large ($2Vd$ terms, where $V$ is the vocabulary size and $d$ is the dimensionality of the vector representations of the words) and the calculated gradient at each iteration is comparatively sparse, we should avoid computing and passing around complete gradient vectors when performing SGD.
+Recall that the skip-gram word2vec model is typically trained using stochastic gradient descent. Because the parametrization of the model is very large ($2Vd$ terms, where $V$ is the vocabulary size and $d$ is the dimensionality of the vector representations of the words) and the calculated gradient at each iteration is comparatively sparse, we should avoid computing and passing around complete gradient vectors when performing SGD.
 
 Previously, we used the following probability in the skip-gram model:
 $$p(o|c) = \frac{\exp\left(u_o^T v_c\right)}{\sum_{w\in V}\exp\left(u_w^T v_c\right)}.$$
-The numerator of this is easy to compute, but the denominator is pretty expensive, as the sum has to be taken across the entire vocabulary. Instead of computing the full sum, the actual word2vec model uses a slightly different objective function that allows it to randomly sample from the vocabulary instead of iterating over the whole vocabulary:
+The numerator of this is easy to compute, but the denominator is pretty expensive, as the sum has to be taken across the entire vocabulary. Instead of computing the full sum, the actual skip-gram model uses a slightly different objective function that allows it to randomly sample from the vocabulary instead of iterating over the whole vocabulary:
 $$J(\theta) = \sum_{t=1}^T J_t(\theta) = \sum_{t=1}^T \left[\log \sigma\left(u_o^T v_c\right) + \sum_{\substack{j\sim P(V)\\ k~\text{samples}}} \log \sigma\left(-u_j^T v_c\right)\right],$$
 where $T$ represents our corpus, $\sigma$ is the sigmoid function, $\sigma(z) = (1 + e^{-z})^{-1}$, $P(V)$ is a probability distribution over the vocabulary $V$, $\sim$ indicates random sampling, and $k$ is a constant, usually around 10. Furthermore, instead of minimizing this objective function, the model actually seeks to maximize it. Intuitively, this means that the model attempts to maximize $u_o^T v_c$ when $o$ occurs in the context of $c$ and minimize $u_w^T v_c$ for $w$ that do not appear in the context of $c$, which is pretty similar to what we were doing with the previous objective function.
 
@@ -73,6 +73,6 @@ Once we have a model, we'd like to evaluate how well it performs. In general, th
 \end{itemize}
 One intrinsic metric is word vector analogy accuracy. For example, if we give the analogy task\\
 \centerline{\texttt{Paris:France::Rome:??}}
-to the model, the model should be able to determine that the correct answer is Italy..Typically word representation models do this by finding the word $w$ that maximizes
+to the model, the model should be able to determine that the correct answer is Italy. Typically word representation models do this by finding the word $w$ that maximizes
 $$\frac{(x_b - x_a + x_c)^T x_w}{||x_b - x_a + x_c||||x_w||},$$
-where the analogy is given as \texttt{a:b:::c:???}. We can then measure how well the model works by feeding it many such analogies and examining how many it gets correct.
+where the analogy is given as \texttt{a:b::c:???}. We can then measure how well the model works by feeding it many such analogies and examining how many it gets correct.

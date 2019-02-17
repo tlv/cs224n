@@ -1,4 +1,4 @@
-A language model is a model that predicts the probability of a sequence of words: $p(w_1, w_2, \dots, w_T)$. Language models have applications in machine translation (e.g. $p(\text{the cat is small}) > p(\text{small is the cat}))$ and speed recognition (e.g. $p(\text{walking home after school}) > p(\text{walking hone after school}))$, among other things. 
+A language model is a model that predicts the probability of a sequence of words: $p(w_1, w_2, \dots, w_T)$. Language models have applications in machine translation (e.g. $p(\text{the cat is small}) > p(\text{small is the cat}))$ and speech recognition (e.g. $p(\text{walking home after school}) > p(\text{walking hone after school}))$, among other things. 
 
 \subsection{Traditional Language Models}
 Traditional language models are typically set up so that the probability of a word is conditioned on a window of $n$ previous words. For reasons of computational complexity, $n$ is usually small; as $n$ increases, performance improves significantly, but the storage and training time requirements grow extremely quickly. Thus these models are pretty limited, since words in a language often depend on other words that occurred quite long ago.
@@ -97,7 +97,7 @@ The issue with vanishing gradients is that it makes it difficult for the model t
 
 The exploding gradient problem is relatively easy to solve - if the gradient $g = \partial E/\partial W$ satisfies $\| g \| > \tau$ for some threshold $\tau$, then we simply do
 $$g := \frac{\tau}{\| g\|}g,$$
-thus effectively capping $\|g\|$ at $\tau$. This basically prevents us from getting too far away from our previous model if we encounter a point in our parameter space where the gradient is very large. However, an analogous solution for vanishing gradients would not work, since it would add too much random noise. But One simple solution for vanishing gradients is to initialize the $W$ matrices to the identity and to use the ReLU activation function (won't go into why this works but it does).
+thus effectively capping $\|g\|$ at $\tau$. This basically prevents us from getting too far away from our previous model if we encounter a point in our parameter space where the gradient is very large. However, an analogous solution for vanishing gradients would not work, since it would add too much random noise. However, one simple solution for vanishing gradients that sometimes works in practice is to initialize the $W$ matrices to the identity and to use the ReLU activation function (won't go into why this works but it does).
 
 As presented, RNNs are incredibly computationally intensive to train. However, there are a few optimizations that we can do in practice:
 \begin{itemize}

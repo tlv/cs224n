@@ -9,7 +9,7 @@ One method is WordNet, which is a database of words that groups words with simil
 \end{itemize}
 This is an example of a discrete/categorical/symbolic representation of words, where each word represents a single concept. Words might be related, but separate words are generally regarded as separate entities. If these words were vectors, each one would be a $V$-dimensional vector of zeroes with a single 1, where $V$ is the vocabulary size. This is sometimes referred to as a ``localist" or ``one-hot" representation.
 
-A problem with these representations is that they lack similarity measures; we could try to manually encode some (as with WordNet), but they don't exist in the representations themselves (e.g. any two distinct word vectors are orthogonal). We can instead try to encode words so that the include similarity information, where a dot product of two words can give you a measure of their similarity. This gives us representations of words as shorter vectors, and this is known as a ``distributed" representation: instead of the meaning of a word being ``localized" to a single component of a vector, it's ``distributed" across multiple components.
+A problem with these representations is that they lack similarity measures; we could try to manually encode some (as with WordNet), but they don't exist in the representations themselves (e.g. any two distinct word vectors are orthogonal). We can instead try to encode words so that they include similarity information, where a dot product of two words can give you a measure of their similarity. This gives us representations of words as shorter vectors, and this is known as a ``distributed" representation: instead of the meaning of a word being ``localized" to a single component of a vector, it's ``distributed" across multiple components.
 
 One idea for generating distributed representations is the idea of distributional similarity, where we figure out the meaning of a word based on the contexts it appears in, i.e. its distribution in text. (The word ``distributional" in ``distributional similarity" is not related to the word ``distributed" in ``distributed representation".) This idea is summed up in a well-known quote: ``You shall know a word by the company it keeps." (John Rupert Firth)
 
@@ -17,7 +17,7 @@ word2vec is a well-known distributed representation model. Its key idea is to pr
 $$\prod_{t=1}^T\prod_{\substack{-m \le j \le m,\\ j \ne 0}}p(w_{t+j} | w_t; \theta),$$
 where $\theta$ is the parametrization of the model, the context of a word is defined as the $m$ words before and after it, $w_i$ is the $i$-th word in the corpus, and $p(w_i | w_j; \theta)$ denotes the model's predicted probability of $w_i$ appearing in the context of $w_j$ given its parametrization $\theta$. Equivalently, the training process attempts to minimize the objective function
 $$J(\theta) = -\sum_{t=1}^T\sum_{\substack{-m \le j \le m,\\ j \ne 0}} \log p(w_{t+j} | w_t; \theta).$$
-More concretely, the model is parametrized by $2|V|$ word vectors, where $V$ is the vocabulary. Each word $w \in V$ has two vector representations: a center word representation $v_w$ and an outer word representation $u_w$. The model then predicts
+An example of a model trained in this way is the skip-gram word2vec model. This model is parametrized by $2|V|$ word vectors, where $V$ is the vocabulary. Each word $w \in V$ has two vector representations: a center word representation $v_w$ and an outer word representation $u_w$. The model then predicts
 $$p(o | c) = \frac{\exp\left(u_o^T v_c\right)}{\sum_{w \in V} \exp\left(u_w^T v_c\right)}.$$
 More intuitively, this means that the model predicts that $o$ is likely to appear in the context of $c$ if the outer word representation of $o$ is similar to the center word representation of $c$.
 
@@ -45,7 +45,7 @@ Intuitively, this means that when we encounter a word $o$ in the context of anot
 \item Move the center word representation $v_c$ of $c$:
 \begin{itemize}
 \item towards the outer word representation $u_o$ of $o$ by an amount negatively correlated with the prior prediction $p(o | c)$, meaning that we should make a larger update for more unexpected events; and
-\item away from the outer word representations $u_w$ for each $w_o$ by an amount positively correlated with the prior prediction $p(w | c)$, meaning that we should make a larger update for more unexpected events (since observing $o$ in the context of $c$ means that we did not observe $w$ in the location of $o$).
+\item away from the outer word representations $u_w$ for each $w \in V \setminus \{w\}$ by an amount positively correlated with the prior prediction $p(w | c)$, meaning that we should make a larger update for more unexpected events (since observing $o$ in the context of $c$ means that we did not observe $w$ in the same location in the context of $c$.).
 \end{itemize}
 \end{itemize}
 This matches our intuition that we expect to see $o$ in the context of $c$ if $u_o$ is similar to $v_c$.

@@ -40,9 +40,9 @@ In code, this might be (assuming that we have 784-dimensional training examples 
 import tensorflow as tf
 
 b = tf.Variable(tf.zeros((100,)))
-W = tf.Variable(tf.random_uniform((100, 784), -1, 1))
+W = tf.Variable(tf.random_uniform((784, 100), -1, 1))
 
-x = tf.placeholder(tf.float32, (784, 2000))
+x = tf.placeholder(tf.float32, (2000, 784))
 
 h = tf.nn.relu(tf.matmul(x, W) + b)
 \end{python}
@@ -57,22 +57,22 @@ If we extend our code example from earlier to run the graph, it might look like 
 import tensorflow as tf
 
 b = tf.Variable(tf.zeros((100,)))
-W = tf.Variable(tf.random_uniform((100, 784), -1, 1))
+W = tf.Variable(tf.random_uniform((784, 100), -1, 1))
 
-x = tf.placeholder(tf.float32, (784, 2000))
+x = tf.placeholder(tf.float32, (2000, 784))
 
 h = tf.nn.relu(tf.matmul(x, W) + b)
 
 sess = tf.Session()
 sess.run(tf.initialize_all_variables())
-sess.run(h, {x: np.random.random(784, 2000)})
+sess.run(h, {x: np.random.random(2000, 784)})
 \end{python}
 In the last line, \pyth{h} is our fetch and \pyth{x} is our feed. Here we're just initializing our training data randomly; in an actual application we'd probably load it in from somewhere. The \pyth{Session} constructor could optionally also take a computation environment as a function parameter. (There's probably other function parameters as well.)
 
 We now need to define a loss function. To do this, we create a placeholder for the training labels and create a loss node using those and our prediction values:
 \begin{python}
 prediction = tf.nn.softmax(h)
-label = tf.placeholder(tf.float32, [100, 2000])
+label = tf.placeholder(tf.float32, (100, 2000))
 # cross entropy per example
 cross_entropy = -tf.reduce_sum(label * tf.log(prediction), axis=1)
 \end{python}
@@ -88,18 +88,20 @@ import tensorflow as tf
 from . import data  # some data loading code you defined
 
 b = tf.Variable(tf.zeros((100,)))
-W = tf.Variable(tf.random_uniform((100, 784), -1, 1))
+W = tf.Variable(tf.random_uniform((784, 100), -1, 1))
 
-x = tf.placeholder(tf.float32, (784, 2000))
+x = tf.placeholder(tf.float32, (2000, 784))
 h = tf.nn.relu(tf.matmul(x, W) + b)
 
 prediction = tf.nn.softmax(h)
-label = tf.placeholder(tf.float32, [100, 2000])
+label = tf.placeholder(tf.float32, (100, 2000))
 # cross entropy per example
 cross_entropy = -tf.reduce_sum(label * tf.log(prediction), axis=1)
 
 train_step = tf.train.GradientDescentOptimizer(0.5).minimize(cross_entropy)
 
+sess = tf.Session()
+sess.run(tf.initialize_all_variables())
 for i in range(1000):  # train on 1000 batches
     batch_x, batch_label = data.next_batch()
     sess.run(

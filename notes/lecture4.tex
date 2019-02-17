@@ -30,7 +30,7 @@ Back to our example problem - imagine that we're using a simple one-hidden-layer
 $$J = \max\left(0, 1 - s + s_c\right),$$
 where $s$ is predicted score of a positive example (where the center word is a named location) and $s_c$ is the predicted score of a negative example (where the center word is not a named location). In practice, for a single positive example, we usually randomly sample some $s_c$ rather than computing the max over the whole training corpus. Intuitively, this loss function tries to find a decision boundary that separates positive and negative samples by a ``sufficiently large" margin (``sufficiently large" is defined here as 1, but it can be tuned as a hyperparameter).
 
-Note that it is very common to write $a = f(z)$, so that $a = f(Wx + b)$ and $z = Wx + b$. (Here $f$ is evaluated element-wise.)
+Note that it is very common to write $a = f(z)$, so that $a = f(Wx + b)$ and $z = Wx + b$. (Here $f$ is evaluated element-wise on each element of $z$.)
 
 We now compute the gradient of $J$ in parts. When $J = 0$ we have $\vec{\nabla} J = 0$, so assume $J > 0$. Then $\vec{\nabla} J = -\vec{\nabla}s + \vec{\nabla}s_c$. We will just compute $\vec{\nabla}s$ for illustration. For the partial derivatives with respect to $U$, we have:
 $$\frac{\partial s}{\partial U} = \frac{\partial}{\partial U} U^Ta = a.$$

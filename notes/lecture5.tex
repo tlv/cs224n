@@ -21,7 +21,7 @@ It now remains to calculate the partials of $s$ with respect to $W^{(1)}$, $b^{(
 &= \sum_k \delta^{(3)}_k W_{ki}^{(2)} f'(W_i^{(1)}x + b_i^{(1)})\frac{\partial}{\partial W_{ij}^{(1)}} \left(W_i^{(1)}x + b_i^{(1)}\right)\\
 &= \sum_k \delta_k^{(3)} W_{ki}^{(2)} f'(z^{(2)}_i)x_j\\
 &= x_jf'(z_i^{(2)})\left(W_{.i}^{(2)T}\delta^{(3)}\right)\\
-\Rightarrow \frac{\partial s}{\partial W^{(1)}} &= \left(f'(z^{(2)}) \left(\circ W^{(2)T} \delta^{(3)}\right)\right) x^T = \delta^{(2)} x^T,
+\Rightarrow \frac{\partial s}{\partial W^{(1)}} &= \left(f'(z^{(2)}) \circ \left(W^{(2)T} \delta^{(3)}\right)\right) x^T = \delta^{(2)} x^T,
 \end{align*}
 where
 $$\delta^{(2)} = \left(W^{(2)T} \delta^{(3)}\right) \circ f'(z^{(2)}).$$

@@ -43,7 +43,7 @@ where $\oplus$ indicates concatenation, and a plausibility score $s = U^Tp$.
 
 Using this simple model, we can parse a sentence by greedily trying to compose all pairs of adjacent nodes and selecting the one with the highest plausibility, and repeating until we're down to a single node. We can then score a parse $y$ of a sentence $x$ by summing the plausibility scores at each composition node of the parse tree.
 
-We can train a model to do this by using the loss function
+We can train a model to do this by maximizing the objective function
 $$J = \sum_i\left( s(x_i, y_i) - \max_{y \in A(x_i)}\left(s(x_i, y) + \Delta(y, y_i)\right)\right),$$
 where:
 \begin{itemize}
@@ -70,7 +70,7 @@ This further builds on the model to allow interactions between words. One idea i
 
 The answer is to represent every word as both a matrix and a vector. We can then compose two children $(c_1, C_1)$ and $(c_2, C_2)$ (where the $c$s are the vector representations and the $C$s are the matrix repesentations) by:
 \begin{align*}
-p &= \tanh\left(W \left[C_2c_1 C_1c_2\right]^T + b\right)\\
+p &= \tanh\left(W \left[C_2c_1~C_1c_2\right]^T + b\right)\\
 P &= W_M\left[C_1C_2\right]^T.
 \end{align*}
 This model, the matrix-vector tree RNN, or MV-RNN, is better than the plain tree RNN at capturing non-additive semantic information in phrases. For example, in an experiment, when trying to assign a semantic score to the phrase ``not awesome", a tree RNN predicted a fairly positive semantic score, while an MV-RNN predicted a much more neutral sentiment.

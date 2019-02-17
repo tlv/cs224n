@@ -10,20 +10,20 @@ Neural Machine Translation (NMT) models are models that perform machine translat
 In 2014, NMT was this crazy idea that someone thought up but nobody was realy taking seriously, but by 2016 it was working much better than all the previous methods. There's a number of reasons why it works well:
 \begin{itemize}
 \item End-to-end training that allows the entire model to be optimized at once on a single loss function is really powerful. This is in contrast to having a bunch of separate models for reordering, transliteration, etc.
-\item They make good use od distributed word representations, which are very powerful. Previous methods had largely used one-hot representations, and the sparseness of the data is very limiting to the model.
+\item They make good use of distributed word representations, which are very powerful. Previous methods had largely used one-hot representations, and the sparseness of the data is very limiting to the model.
 \item Neural models use context much more effectively than traditional phrase-based models.
 \item Deep neural nets are just better at generating fluent text, even if the ``translation quality" isn't improved much.
 \end{itemize}
 However, there are still some shortcomings of NMT:
 \begin{itemize}
-\item NMT models don't make good explicity use of syntactic and semantic structures.
+\item NMT models don't make good explicitly use of syntactic and semantic structures.
 \item NMT is still bad with higher-level properties of text, like discourse structure, anaphora, and clause linking.
 \end{itemize}
 
 \subsection{Attention}
-One issue with decoding an encoding $Y$ into a target language is that you might end up forgetting a bunch of the information in $Y$ as you pass through time steps. A simple way to counter this is to pass $Y$ directly into your hidden unit at each time step. However, there's a larger, higher-level issue here: $Y$ itself might have already forgotten a lot of the information from the earlier parts of the source sentence. In practice this is ok for short sentences, but for longer sentences (>30 words), NMT translations get significantly worse.
+One issue with decoding an encoding $Y$ into a target language is that you might end up forgetting a bunch of the information in $Y$ as you pass through time steps. A simple way to counter this is to pass $Y$ directly into your hidden unit at each time step. However, there's a larger, higher-level issue here: $Y$ itself might have already forgotten a lot of the information from the earlier parts of the source sentence. In practice this is ok for short sentences, but for longer sentences ($>$30 words), NMT translations get significantly worse.
 
-Attention is a concept that combats this difficulty. The key idea is to maintain a pool of the hidden units at all time steps during the encoding step, and let the decoder draw from this pool of source states as needed. This means that the decoder needs some way to know which elements from the pool are important, and some way to act on this knowledge. This is usually done at each decoding time step by scoring each source state against the most recent hidden state, creating a context vector by summing the source states weighted by their scores (passed through a softmax to turn them into a probability distribution), and passing this context vector as an input in creating the next hidden state. There are multiple ways to do this scoring between a source state $h_s$ and a target hidden state $h_t$:
+Attention is a concept that combats this difficulty. The key idea is to maintain a pool of the hidden units at all time steps during the encoding step, and let the decoder draw from this pool of ``source states" as needed. This means that the decoder needs some way to know which elements from the pool are important, and some way to act on this knowledge. This is usually done at each decoding time step by scoring each source state against the most recent hidden state, creating a context vector by summing the source states weighted by their scores (passed through a softmax to turn them into a probability distribution), and passing this context vector as an input in creating the next hidden state. There are multiple ways to do this scoring between a source state $h_s$ and a target hidden state $h_t$:
 \begin{itemize}
 \item A simple dot product: $h_s^T h_t$
 \item A bilinear form with a trained weight matrix $W_a$: $h_s^TW_ah_t$
