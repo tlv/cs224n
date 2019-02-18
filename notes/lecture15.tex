@@ -1,0 +1,116 @@
+Coreference resolution refers to the problem of identifying all noun phrases (sometimes called ``mentions" in this context) in a passage of text that co-refer, i.e. that refer to the same thing. For example, in the following sentence, all the \textbf{bolded} phrases refer to Barack Obama, and all the \emph{italicized} phrases refer to Hillary Clinton.
+\begin{itemize}
+\item \textbf{Barack Obama} nominated \emph{Hillary Rodham Clinton} as \textbf{his} \emph{Secretary of State} on Monday. \textbf{He} chose \emph{her} because \emph{she} had foreign affairs experience as a former \emph{First Lady}.
+\end{itemize}
+In general, there are three categories of noun phrases to distinguish between and watch out for in coreference resolution:
+\begin{itemize}
+\item Named entities
+\item Pronouns
+\item Common noun references (e.g. ``the local park", ``the school play", ``the naughty child", etc.)
+\end{itemize}
+It's worth noting that it's not always obvious, even to humans, whether two noun phrases corefer. For example, in the clause ``This tree is the nicest tree," do ``This tree" and ``the nicest tree" co-refer? ``the nicest tree" in this example is what's called a \emph{predicate nominal}, which is when a noun phrase makes a statement about some subject (in the example, ``This tree" is the subject). People actually aren't in agreement on whether predicate nominals and their subjects co-refer, and you'll find that different datasets mark them differently on whether they co-refer.
+
+Mentions can also be nested. For example, take the sentence ``After becoming Obama's Secretary of State, Hillary Clinton saw an increase in her responsibilities." The noun phrase ``her responsibilities" actually has two mentions: ``her" refers to Hillary, and ``her responsibilities" refers to, well, her responsibilities, which are separate from Hillary herself.
+
+Coreference resolution has a lot of applications, including:
+\begin{itemize}
+\item Full text understanding of an extended discourse
+\item Machine translation (different languages represent gender, number, etc. in different ways, so it's helpful to note when two words actually refer to the same thing so that the resulting translation is actually a sensible communication of the same idea in the target language)
+\item Text summarization (helpful to know when two statements are actually about the same subject)
+\item Information extraction and question answering (e.g. if you want to know who married Claudia Ross and your corpus says ``He married Claudia Ross in 1981," it's very helpful to know who ``He" refers to.
+\end{itemize}
+
+\subsection{Co-reference model evaluation}
+One common evaluation metric for coreference models is the B-CUBED score (Bagga \& Baldwin, ``Entity-Based Cross-Document Coreferencing Using the Vector Space Model", 1998). This metric evaluates, for each ``true" entity $i$ (an entity being a root mention and all co-referring mentions) in the text passage, a precision and a recall, where the precision is the proportion of the mentions in entity $i$'s ``predicted" coreference cluster that are truly coreferences, and the recall is the proportion of true coreferences that made it into entity $i$'s predicted coreference cluster. Each entity is then assigned a weight, and a weighted average using these weights is computed over the entity-level precisions and recalls to get a global precision and recall score. (The original paper mentions that they used a uniform weighting scheme, although they said that other weighting schemes could be used as well.)
+
+Note that, as described, it's actually NP-hard in the general case to compute the optimal B-CUBED score (for each entity, ``it's" predicted coreference cluster could be any of the coreference clusters that were formed during model evaluation). In practice, however, greedy approaches to finding the optimal B-CUBED score are sufficient.
+
+Other evaluation metrics for coreference resolution also exist; a few well-known examples are MUC, CEAF, and BLANC.
+
+\subsection{Types of references}
+Just like there are three important types of noun phrases (see earlier), there are three main types of mentions:
+\begin{itemize}
+\item \emph{Referring expressions} are direct references to things in the real world. For example, ``John Smith", ``President Smith", ``the president", and ``the company's new executive" might all co-refer in a given text passage, and they are all referring expressions, as they all directly refer to a specific actual person.
+\item The other two types of mentions are different types of variables, which are mentions whose reference to a real-world entity are contingent on some other mention in the same text passage.
+\begin{itemize}
+\item \emph{Free variables} are mentions that don't necessarily refer to a constant thing. An example of a free variable is ``his pay" in ``Smith saw his pay increase." Since Smith's pay is unspecified, this is a free variable, which is in contrast to:
+\item \emph{Bound variables}, which refer to a fixed entity. An example of a bound variable is ``herself" in ``The dancer hurt herself." Note that this is still a variable, however, as opposed to a referring expression, because ``herself" doesn't refer to any specific entity until ``the dancer" is specified.
+\end{itemize}
+\end{itemize}
+Also note that not all noun phrases must refer. For example, in the sentence ``No dancer twisted her knee", ``her" does not refer to anything in the real world; it refers to ``no dancer", which doesn't actually specify any concrete entity.
+
+\subsection{Anaphora}
+Coreference describes the general relationship of two mentions that refer to the same entity in the world. Anaphora is a similar relationship in which an anaphor refers to an antecedent, and the interpretation of the anaphor is somehow determined by the interpretation of the antecedent. Usually the antecedent comes before the anaphor (as in ``I ate some sushi. It was tasty", where ``sushi" is the antecedent and ``It" is the anaphor), but occasionally the anaphor comes first (as in ``As he locked the front door, John realized he had forgotten his laptop", where ``he" in the first sentence is the anaphor, and ``John" is the antecedent). When this happens, this is sometimes called cataphora. From a strictly linguistic standpoint, it makes more sense to say that the anaphor refers to the antecedent in a cataphora, but NLP systems usually simplify things (by removing the need to detect coreferences in both directions) by specifying that the (later) antecedent refers to the (earlier) anaphor.
+
+Although anaphora may initially seem like a subset of coreference, you can actually have anaphora without coreference - for example, in ``We went to a concert, and the tickets were expensive", ``the tickets" is the anaphor, whereas ``a concert" is the antecedent, but they clearly don't refer to the same entity. This is called a bridging anaphora. It's also possible to have coreference without anaphora: for example, if a text passage contains the words ``Ruth Bader Ginsburg" twice, it's clear that both mentions refer to the same person, even though neither is an anaphor. It's important that we don't confuse anaphora and coreference for each other - they are not the same thing.
+
+One particular case of anaphora resolution is pronoun resolution. An early pronoun resolution model is an algorithm designed by Hobbs (``Resolving Pronoun References", Hobbs 1978). It's a fairly complex deterministic heuristic algorithm that did better than all other methods for many years. Today's NN models do much better than it, but it's still commonly used as a feature for those models.
+
+A significant case where Hobbs' algorithm fails is when real-world knowledge is required to resolve a pronoun reference. For example, the following two sentences have the same structure:
+\begin{itemize}
+\item The city council refused the women a permit because they feared violence.
+\item The city council refused the women a permit because they advocated violence.
+\end{itemize}
+It's clear to us that ``they" refers to the city council in the first sentence and to the men in the second sentence, but this requires some background knowledge about city councils and permits.
+
+\subsection{Types of coreference models}
+There are a few main types of coreference models that people have been studying lately:
+\begin{itemize}
+\item \emph{Mention pair models} treat coreference chanis as a collection of pairwise links. They make independent pairwise decisions and reconcile them deterministically (e.g. through transitivity or greedy partitioning).
+\item \emph{Mention ranking models} are slightly different and rank all candidate antecedents for a mention (the candidates usually being all mentions that came before it), then select the best.
+\item Entity-mention models explicitly think about the various entities that occur in a text passage. When a new mention appears, the model tries to judge whether it is a mention of an existing entity (and which one) or a new entity.
+\end{itemize}
+The mention pair model is the easiest of the three to reason about, and there are still advances being made by using mention pair models. They usually work by taking a current mention and a set of earlier mentions, and classifying whether the current mention corefers with each of the previous mentions, using some binary classifier. These models can be trained with supervision using a set of text passages with labeled coreferences by using those coreferences as positive examples and all other pairs as negatives. They often take the word/phrase contexts as their inputs, and there are several other features that they commonly train on, including:
+\begin{itemize}
+\item Person/number/gender agreement, e.g. ``Jack gave \textbf{Mary} a gift. \textbf{She} was excited."
+\item Semantic compatibility, e.g. ``...\textbf{the mining conglomerate}...\textbf{the company}..."
+\item Syntactic constrains, e.g. in ``John bought him a new car", ``him" cannot corefer with ``John", since we would need a reflexive pronoun (``himself") in that case.
+\item Recency, e.g. in ``John went to a movie. So did Jack. He was not busy", ``He" is more likely to refer to ``Jack" than ``John".
+\item Grammatical role, e.g. by preferring subjects. In ``John went to a movie with Jack. He was not busy", ``He" is more likely to refer to ``John" than ``Jack".
+\item Parallelism, e.g. ``John went with \textbf{Jack} to a movie. Joe went with \textbf{him} to a bar."
+\end{itemize}
+
+\subsection{A specific model}
+A recent (as of the lecture) state-of-the-art improvement in coreference resolution was \emph{Deep Reinforcement Learning for Mention Ranking Coreference Models} (Clark \& Manning 2016). At a high-level, this model works by looking at the mentions in a text passage in sequence, and for each mention, independently scoring it with all previous mentions (including a special mention NEW), and assigning it to co-refer with the highest-scoring previous mention (saying that mention co-refers with NEW means that it does not actually co-refer with any previous mention, and introduces a new entity). It thus infers a global structure by making a sequence of local decisions.
+
+The architecture is as follows:
+\begin{itemize}
+\item The input layer takes a number of different features:
+\begin{itemize}
+\item Candidate antecedent word embeddings (of the first word, the head word, etc.)
+\item (Current) mention word embeddings (analogous to candidate anteccedent embeddings - first word, head word, etc.)
+\item Other hand-crafted features: distance between the current mention and the candidate antecedent, string matching, the speaker (if dialogue), etc.
+\end{itemize}
+\item The input is then followed by 3 hidden RELU layers.
+\end{itemize}
+When training a coreference resolution model, it's important to note that some mistakes are worse than others. For example, if in a sequence of mentions ``Bill Clinton...he...Clinton...Clinton...Hillary...her", the model predicts that the two occurrences of ``Clinton" co-refer when one refers to Bill and the other to Hillary, this is much worse than if the model predicts that ``the car" co-refers with the first ``it" in ``It was raining, but the car stayed dry because it was under cover." However, it's difficult to measure the impact of an error until the entire coreference structure has been completed, so the model uses reinforcement learning by updating based on a reward given at the end of each parse. Reinforcement learning also helps by removing the need to tune some hyperparameters that previous models used.
+
+Previous work would sometimes categorize errors into different classes. One categorization classifies errors into three categorizations:
+\begin{itemize}
+\item A \emph{false new} is when a mention was predicted to be a new entity when it actually co-referred with a previous mention.
+\item A \emph{false anaphoric} is the opposite: when a mention was predicted to co-refer with a previous mention when it actually was a new entity.
+\item A \emph{wrong link} is when a mention is predicted to co-refer with a previous mention, but it actually co-referred with a different previous mention.
+\end{itemize}
+We could then define a loss hyperparameter for each type: $\Delta_h(c, m_i) = 0$ if $m_i$ truly co-refers with $c$, but equals either $\alpha_{FN}, \alpha_{FA}$, or $\alpha_{WL}$ if not, depending on the type of error. We can then use these loss hyperparameters in a max-margin loss:
+$$J = \max_{c \in C(m_i)} \Delta_h\left(c, m_i\right) \left(1 + s\left(c, m_i\right) - s\left(\hat{t}_i, m_i\right)\right),$$
+where $C(m_i)$ is the set of candidate antecedents for the current mention $m_i$, $s(c, m)$ is the score given by the model for the current mention $m$ co-referring with the candidate antecedent $c$, and $\hat{t}_i$ is the true antecedent for mention $m_i$. However, as mentioned before, this method requires a hyperparameter search for the best values of $\alpha_{FN}, \alpha_{FA}$, and $\alpha_{WL}$ (the ones that give your model the best score on whatever evaluation metric you're using, e.g. B-CUBED), and it's not clear that the error types always correlate well with ``badness."
+
+The NN model we were previously discussing used the B-CUBED score as its reinforcement reward. The authors then tried two approaches to actually doing the reinforcement update:
+\begin{itemize}
+\item The first is the relatively common REINFORCE method. 
+\begin{itemize}
+\item It defined a probability distribution over each possible action (i.e. each candidate antecedent for a mention) via a softmax on the model scores: $p_{\theta}\left((c, m)\right) \propto e^{s(c, m)}$ for each possible action $a = (c,m)$.
+\item It would maximize the expected reward 
+$$J(\theta) = \mathbb{E}_{\left[a_{1:T} \sim p_\theta\right]}R(a_{1:T})$$.
+\item Note that the expected value above actually requires summing over an exponential number of sequences of actions, so in practice these sequences were sampled to approximate the expected value and the gradient.
+\item This ended up performing a bit better than heuristic loss, but it was maximizing the expected performance, whereas we actually only care about the performance of the highest scoring sequence.
+\end{itemize}
+\item The other method was reward rescaling, which provided a much larger performance boost.
+\begin{itemize}
+\item For each action, since it is independent, we can change it and see how the reward is affected as a result. This allows us to infer the cost of each possible mistake.
+\item We can then define a regret term
+$$\delta_r\left(c, m_i\right) = \max_{a_i' \in A_i} R\left(a_1, \dots, a_i', \dots, a_T\right) - R\left(a_i, \dots (c, m_i), \dots, a_T\right).$$
+\item Using this regret term as a substitute for the heuristic loss hyperparameter in the max margin loss above ended up giving a significant performance boost.
+\end{itemize}
+\end{itemize}
+It's worth noting that the reward rescaling model actually made more errors than the REINFORCE model and the heuristic loss model, but overall it ended up making ``less bad" errors, which allowed it to perform better on the evaluation metric.
