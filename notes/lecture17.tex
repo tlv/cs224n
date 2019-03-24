@@ -1,0 +1,91 @@
+This lecture is mostly a hodge-podge of various different topics.
+\subsection{Solving Language}
+As of this lecture (early 2017), a lot of deep learning experts (Yann LeCun, Geoffrey Hinton, etc.) are out to ``solve" NLP in a way like ImageNet ``solved" computer vision. (As of March 2019, which is when I'm drafting these notes for the first time, the Transformer architecture may be able to make that claim.) For a few years prior, the research community had been content to just run LSTMs and get incremental improvements, even though researchers had much more lofty goals in the 1980s, despite realities being much more modest.
+
+In Peter Norvig's 1986 dissertation, he mentioned that, for an NLP system, ``...a suitable knowledge base is a prerequisite for making proper inferences”. We now know that's not true, but the types of inferences he was talking about are still educational. He discussed 4 basic types of inference (as well as two more that were combinations of these 4):
+\begin{itemize}
+\item Elaboration: filling in a slot to connect two entities, usually with a reason. Example: John had a piggybank REASON to have money REASON to buy a present.
+\item Coreference resolution (see Lecture 15)
+\item View application, e.g. metaphor interpretation. For example, if I say ``The Red Sox killed the Yankees," I mean that the Red Sox soundly defeated the Yankees in a baseball match, not that they literally murdered the members of the opposing team.
+\item Concretization, or inferring a more specific description from a general one. For example, if it's mentioned that I traveled somewhere alone in a (non-autonomous) car, it can be inferred that I drove there.
+\end{itemize}
+Obviously we've made a ton of progress since 1986. One example of an area that's much better today is syntactic parsing - Norvig actually mentioned in his dissertation the difficulties of using PHRAN (a syntactic parsing program of the time) to parse sentences, but modern systems are able to do it quite well. However, we haven't really gotten good at all four of his tasks; elaboration, for example, is still very hard with modern systems.
+
+So what's the state of NLP as of early 2017?
+\begin{itemize}
+\item Bidirectional LSTMs with attention are improving state of the art on pretty much every task. (As of early 2019 Transformers seem to be doing the same thing.)
+\item Neural methods are leading to a text generation renaissance - they're doing way better than previous methods and improvements are happening very quickly.
+\item The question is being raised of whether we need to work with explicit localist language representations (like syntactic structures and semantic frames) at all in complex NLP tasks. For example, DMNs (see Lecture 16) do away with all of this and perform quite well.
+\end{itemize}
+But obviously there are still areas with lots of work to be done:
+\begin{itemize}
+\item Methods for building memory/knowledge bases are pretty primitive. LSTMs can remember 100 words or so, but no model is able to accumulate years worth of knowledge and experience like a human brain.
+\item Our models aren't good at understanding inter-sentence relationships.
+\item Our models can't produce elaborations from a situation using common-sense knowledge.
+\end{itemize}
+
+\subsection{Tree RNNs revisited}
+See Lecture 14 for the first introduction to tree RNNs.
+
+Tree RNNs are a very theoretically appealing structure - they take advantage of recursion, which is a fundamental aspect of (almost) all languages. They've also been shown to perform competitively in practice. However, they're computationally slow, are often used with an external model to parse syntactic structure, and commonly fail to take advantage of the complementary linear structure of language. 
+
+Note: The reason that tree RNNs are computationally slow compared to LSTMs is because they have a hard time exploting the batch parallelization that GPUs are capable of. In an LSTM, you're guaranteed that every sentence in a batch follows the same pattern of computation (a fixed sequence). However, because each sentence might be structured differently when using a tree RNN model, this falls apart when using tree RNNs, and GPUs are not really able to batch-process multiple sentences at a time. (I'm not completely sure on the technical details here, but I think this is the general idea.)
+
+\subsubsection{SPINN}
+
+The Shift-reduce Parser-Interpreter Neural Network (SPINN) model (\begin{tt}https://arxiv.org/abs/1603.06021 \end{tt}) attempts to address all three of these difficulties. It improves batch processing efficiency, operates standalone (without an external parser), and operates linearly over sentences. 
+
+A beginning observation that motivated this model is that every tree structure can be represented as a sequence of SHIFT and REDUCE, where SHIFT takes a word from the buffer and puts it on the stack, and REDUCE combines the top two elements on the stack into a single element (see Lecture 6 for how the buffer and stack work). For example, the representation (I (eat bread)) of the sentence ``I eat bread" can be represented as SHIFT SHIFT SHIFT REDUCE REDUCE.
+
+The model can basically be described as two parts: a tracking LSTM (with a stack and buffer) and a compositional tree RNN. The LSTM takes in the top element of the buffer and the top two elements of the stack as inputs, and at each time step decides to either SHIFT (move the element on top of the buffer onto the top of the stack) or REDUCE (pop the top two elements off the stack, compose them with the tree RNN, and place the result back on the stack).
+
+The authors had to do some tricks to implement the stack efficiently - if they implemented it naively, it would have run into the same computational issues that tree RNNs historically had. Instead, when the top two elements on the stack were composed, they were not popped off - the composition was simply pushed onto the stack on top of its two children. Structure was maintained by keeping a list of backpointers, which was a sorted list of which elements were actually in the stack. (For example, if we started with a stack of 3 elements with no compositions, the backpointers would simply be (1, 2, 3). If we composed the top two elements, the stack would now have 4 elements, and the backpointers would be (1, 4), since elements 2 and 3 were composed and no longer actually in the stack.)
+
+SPINN was able to achieve new state-of-the-art on the Stanford Natural Language Inference dataset, where the task is to predict an entailment, contradiction, or neutral relationship between two sentences. On this task, SPINN was used to independently generate a ``meaning" vector for each of the two sentences, and those vectors were then fed to a simple feedforward neural network to perform classification. Some examples of cases where SPINN edged out the previous best (an LSTM model) were sentences involving negation, where word order or a single additional word can flip the meaning of the sentence, and sentences that were very long (\textgreater 20 words).
+
+\subsection{Out-of-vocabulary}
+New and rare out-of-vocabulary words are an issue with pretty much all NLP tasks. In tasks that involve generating a target text from some source text (e.g. machine translation, question answering), these words are difficult to interpret when encountered in the source, and difficult to generate in the target. One model attempted to address this issue in these types of tasks by training a classifier with the decoder that would decide whether to choose a word from the vocabulary (using softmax) or copy over a word from the input. (Paper: \begin{tt}https://arxiv.org/abs/1603.08148\end{tt}.) This is sometimes referred to as a pointer/copying model. However, another method has been gaining traction as of this lecture.
+
+\subsubsection{Sub-word models}
+Before getting into the details of sub-word models, it's worth motivating why they may be helpful.
+
+Most deep learning NLP starts by looking at written language, since it's easily processed and there's a lot of data available. However, not all writing systems are the same:
+\begin{itemize}
+\item Some systems are phonemic (where basically each phoneme is written down, e.g. Italian)
+\item Fossilized phonemic (where the written form indicates phonemes, but isn't a perfect mapping, e.g. English)
+\item Syllabic/moraic (each unit of writing is one syllable, and units can be broken down into subunits that indicate phonemes, e.g. Korean)
+\item Ideographic (syllabic, but each syllable's symbol doesn't really indicate phonemes in its sub-parts, e.g. Chinese)
+\item A mixture of the above (e.g. Japanese)
+\end{itemize}
+Word representations also vary a lot:
+\begin{itemize}
+\item Some systems (e.g. Chinese) don't delimit words.
+\item Some languages keep clitics (e.g. the 'm in I'm) separate, like French, while some combine many of them together, like Arabic.
+\item Some languages keep word compounds separate, like English (``life insurance company employee"), while others agglutinate them into a single word, like German (``Lebensversicherungsgesellschaftsangestellter").
+\end{itemize}
+Thus there is a need for language models that can handle large, open vocabularies. Obviously this can be helpful for languages with rich morphologies that allow morphemes to be combined into words in many different ways, but it can also help with things like informal spellings (``gooooood morning!") and transliteration (e.g. ``John" should not just be copied if translating to Spanish; rather it should be transliterated as ``Juan").
+
+Deep learning hasn't really explored the traditional-linguistics decomposition of words into morphemes (e.g. ((un((fortun)ate))ly) as a decomposition of ``unfortunately"). One alternative that people have tried is by working with character n-grams (Rumelhart \& McClelland 1986; Microsoft DSSM, Huang et al. 2013), which can give the benefits of using morphemes more easily.
+
+One other avenue of exploration that's gotten more attention is character-level modeling. Character embeddings allow word embeddings for unknown words to be generated from character embeddings, which works reasonably well in practice - words with similar spellings share similar embeddings are are likely to actually have similar meaning. An example of a character-based model is this character-level LSTM that achieved state-of-the-art results in POS tagging: \begin{tt}https://arxiv.org/abs/1508.02096\end{tt}. However, it's not obvious that this would have succeeded, as characters aren't really a semantic unit in traditional linguistics. 
+
+An area where sub-word models are getting traction is machine translation. Here models are following two trends:
+\begin{itemize}
+\item Some models use a similar seq2seq architecture, like this one: \begin{tt}http://www.aclweb.org/anthology/P16-1162\end{tt}.
+\begin{itemize}
+\item The key idea behind this paper is a compression algorithm called byte-pair encoding, where a sequence of bytes is compressed by repeatedly taking the most common byte pair (``bigram") and assigning a single (previously unused) byte to map to that byte pair. 
+\item The authors used this idea to generate a vocabulary of some predetermined size (say 30k), starting from unigrams, and then repeatedly taking the most common n-gram that doesn't yet have a vocabulary item as a new vocabulary item. This automatically generates a vocabulary from a corpus.
+\item Google's machine translation (as of the lecture) does something similar: they use a wordpiece model, but wordpieces are chosen using a greedy algorithm that approximately maximizes language model log likelihood.
+\end{itemize}
+\item Other models use a hybrid approach, using a word-level RNN where possible, and a separate character-level model elsewhere. An example is \begin{tt}https://arxiv.org/abs/1604.00788\end{tt}.
+\begin{itemize}
+\item The advantage of mostly operating at the word level is that it is faster than operating at the character level. 
+\item At its core, this model has a word-level encoder-decoder machine translation system operating over a fixed vocabulary. Its innovation lies in how it deals with out-of-vocabulary words.
+\begin{itemize}
+\item When an OOV word occurs in the input, it generates an embedding for it using a character-level LSTM.
+\item At decoding time, the model may produce a special UNK token, indicating an unknown word. When this happens, it takes the hidden state of the word-level RNN as the initial input for a character-level LSTM and generates an output word. One detail is that the embedding of this output word is not fed back into the decoder at the next time step as would be customary for other output words; instead, we just feed UNK back into the decoder as the previous output. (This is done for performance reasons.)
+\end{itemize}
+\item During decoding, the model performs beam search at both the word level and the character level.
+\item This model was able to achieve state-of-the-art results on English-Czech translation. Czech has a relatively rich morphology, so previous models were often getting stuck on OOV words or doing inappropriate point-and-copy (e.g. copying ``11-year-old", when it should have been translated to an actual word).
+\end{itemize}
+\end{itemize}
