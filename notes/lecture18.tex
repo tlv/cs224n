@@ -1,0 +1,44 @@
+This lecture is similarly hodge-podgy. However it's worth noting that as of early 2019, various models based on the Transformer architecture (e.g. OpenAI GPT, Google BERT, Microsoft MT-DNN) have addressed the obstacles mentioned in this paper more effectively than anything at the time of the lecture (early 2017).
+
+As of early 2017 it seemed like NLP had reached the limits of ML's capability in optimizing a single metric on a single supervised dataset for a single task. But a single unsupervised task also seemed unlikely to yield significant improvements in NLP, as language in real life contains a lot of natural supervision: other people give you sentiment feedback, you observe it corresponding to physical objects in the world, you use it to reason logically about facts, etc. To make progress, it seems that we'll need to find a unified architecture that can perform many tasks well, leveraging knowledge from one task to improve performance in others.
+
+\subsection{A Joint Many-Task Model}
+In lecture 16, it was mentioned that getting fully joint multitask learning to work was difficult, and that attempts were usually unsuccessful when the tasks were not closely related. A model that ended up succeeding was the Joint Multi-Task (JMT) model (\begin{tt}https://arxiv.org/abs/1611.01587\end{tt}).
+
+The tasks that the JMT performed were POS tagging, dependency parsing (both UAS and LAS), semantic relatedness, and textual entailment. An outline of the architecture:
+\begin{itemize}
+\item The model started with word embeddings and n-gram embeddings (to address out-of-vocabulary words) at the input layer.
+\item At a high level, the model consisted of multiple stacked bidirectional LSTMs, where each LSTM's hidden states and softmax outputs were fed as input into the next LSTM (and sometimes shortcircuited to later LSTMs as well).
+\item The first LSTM classified POS. One technique that the paper used to preserve differentiability was to output a weighted sum of label embeddings to be used as input in subsequent layers. What this meant for the POS tagger was that each possible output label (adjective, verb, etc.) was given a vector embedding, and instead of the softmax classifier making a hard decision to select one of these embeddings to pass as input to the next layer, it passes a weighted sum (using the softmax weights) of these embeddings. (Most subsequent layers did this as well.)
+\item The next one performed chunking, predicting the locations of the beginnings and ends of chunks. It takes as input the output and hidden state from the POS LSTM as well as the word/n-gram vectors.
+\item The next layer performed dependency parsing. Instead of using a SHIFT/REDUCE method for this, it simply ran its input through a bidirectional LSTM and then used the hidden states to predict all $O(n^2)$ instances of whether each word depended on every other word. While this process can theoretically construct invalid  dependency graphs (e.g. ones that are cyclical), in practice it produce well-formed trees almost all the time. Invalid trees were fixed by using a heuristic algorithm. The inputs to this layer were the word/n-gram vectors and all previous outputs and hidden states.
+\item The next layer predicted semantic relatedness between two sentences. It first passed the word/n-gram vectors and all previous outputs and hidden states through a bidirectional LSTM (one for each sentence), and then performed temporal max-pooling over the hidden states at all timesteps to produce a single sentence vector for each sentence. These vectors were then combined, some basic features extracted, and the result passed to a softmax classifier.
+\begin{itemize}
+\item Temporal max-pooling is basically an element-wise maximum across all hidden states. So if the hidden states are $h_1, h_2, \dots, h_t$, the sentence embedding $h_s$ would be
+$$h_s = \left(\max\left(h_{11}, h_{21}, \dots, h_{t1}\right), \max\left(h_{12}, h_{22}, \dots, h_{t2}\right), \dots, \max\left(h_{1d}, h_{2d}, \dots, h_{td}\right)\right).$$
+\end{itemize}
+\item The last layer is similar and predicts textual entailment between two sentences, although it does not take the dependency parsing hidden state as input and instead takes the hidden state from the semantic relatedness layer.
+\end{itemize}
+There was also one special trick used when training this model: in an epoch, the model would start by training all mini-batches for earlier layers (i.e. starting with the POS-tagging layer) before starting mini-batches for later layers. Furthermore, when training later layers, it would apply a regularization penalty for changes made to the weights on earlier layers. This prevented the model from forgetting what it had learned previously.
+
+Ablation studies done on this model found that the joint training actually did improve performance on individual tasks. In general, it seems that joint training is helpful either when your datasets are small or when your output is highly complex (e.g. machine translation has a much more complex output than binary classification).
+
+\subsection{Other issues in deep NLP}
+The rest of the lecture was a succession of other issues in NLP, presented alongside brief overviews of papers that made progress towards addressing them.
+
+\subsubsection{Zero-shot word predictions}
+One issue with NLP is the problem of new words. A standard machine translation model is only able to predict words in its softmax vocabulary, so it will be unable to output any words that it hasn't seen at training time. However, in real life, humans are able to learn new words in active conversation, and in a perfect world, ML systems should be able to do the same. Lecture 17 presented a couple of approaches to dealing with this: pointers and character-by-character generation. A success using the pointing approach is \begin{tt}https://arxiv.org/abs/1609.07843\end{tt}.
+
+\subsubsection{Duplicate word representations}
+It's worth noting that if your model takes textual input and includes a decoder that ends with a softmax over a vocabulary, then it contains vector representations of words at two places: at the input layer and, implicitly, at the softmax layer (the softmax matrix has a row for each vocabulary item). A model that forced these two representations to be the same (\begin{tt}https://arxiv.org/abs/1611.01462\end{tt}) was able to improve state-of-the-art perplexity on a language modeling dataset. Notably, the model had only 51M parameters, while two previous state-of-the-art models had 660M parameters and 2.51B parameters, respectively.
+
+\subsubsection{Context in question answering}
+Oftentimes the meaning of a question can vary dramatically depending on context; for example, ``May I cut you?" can mean two very different things depending on whether you are standing in line or whether I'm holding a knife. \begin{tt}https://arxiv.org/abs/1611.01604\end{tt} is a model that attempts to better take input context into account for question answering.
+
+This model operates over the Stanford Question Answering Dataset (SQUAD), which is a set of 100k question-answer-input triplets. Each answer is represented as a span of text from the input (e.g. 49th word to 51st word). It's worth noting that for datasets like this one, where the task is not totally trivial for humans, it can be helpful to obtain an ``ideal" baseline by checking how often two humans agree on items in the dataset. (Researchers have found that for datasets like this one, when they examine mistakes made by their model, they sometimes actually agree more with the model than the dataset!)
+
+\subsubsection{Computational issues}
+One difficult of RNNs is that they limit the amount of parallel computation that's possible. This is because each time step's computation depends on the result of the previous time step, and so you can't parallelize time steps. CNNs, on the other hand, are better at parallelization, but convolutional models often just don't perform as well, probably because they don't do well with long-reaching dependencies. \begin{tt}https://arxiv.org/abs/1611.01576\end{tt} is a model that attempts to address this by combining the best of both worlds from RNNs and CNNs - it achieves state-of-the-art results while training much more quickly than similar LSTM models.
+
+\subsubsection{Architecture search is slow}
+Finding the correct architecture for a model is a difficult problem even for experienced researchers, and often requires lots of trial and error. \begin{tt}https://arxiv.org/abs/1611.01578\end{tt} is a model that uses RL to try to find optimal architectures to train models to perform other tasks. A custom recurrent unit found by this model was able to further reduce state-of-the-art perplexity on a language modeling task.
